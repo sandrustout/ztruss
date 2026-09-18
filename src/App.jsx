@@ -1,0 +1,259 @@
+import React, { useState, useEffect } from 'react';
+import { TrussProvider, useTruss } from './context/TrussContext';
+import Toolbox from './components/Toolbox';
+import Canvas from './components/Canvas';
+import AnalysisPanel from './components/AnalysisPanel';
+import PrecisionModal from './components/PrecisionModal';
+import TeamPage from './components/TeamPage';
+import TargetCursor from './components/TargetCursor';
+import { RotateCcw, Compass, Users, Undo2, Redo2 } from 'lucide-react';
+import './styles/blueprint.css';
+
+function MainLayout() {
+  const {
+    joints,
+    members,
+    supports,
+    forces,
+    resetView,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    lengthUnit,
+    setLengthUnit,
+    forceUnit,
+    setForceUnit
+  } = useTruss();
+
+  const [currentPage, setCurrentPage] = useState('studio');
+
+  // Prevent browser-level pinch/Ctrl+wheel page zooming globally
+  useEffect(() => {
+    const handleGlobalWheel = (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+
+    const handleGesture = (e) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('wheel', handleGlobalWheel, { passive: false });
+    window.addEventListener('gesturestart', handleGesture, { passive: false });
+    window.addEventListener('gesturechange', handleGesture, { passive: false });
+    window.addEventListener('gestureend', handleGesture, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleGlobalWheel);
+      window.removeEventListener('gesturestart', handleGesture);
+      window.removeEventListener('gesturechange', handleGesture);
+      window.removeEventListener('gestureend', handleGesture);
+    };
+  }, []);
+
+  return (
+    <div className="app-container">
+      {/* Top Engineering Nav Header */}
+      <header className="app-header">
+        <div
+          className="brand-section cursor-target"
+          onClick={() => setCurrentPage('studio')}
+          title="Return to Z-Truss Studio Simulator"
+          style={{ cursor: 'pointer' }}
+        >
+          <img
+            src="/favicon.svg"
+            alt="Z-Truss Logo"
+            className="brand-logo-img"
+            style={{ width: 34, height: 34, borderRadius: 6, display: 'block' }}
+          />
+          <div className="brand-title-wrap">
+            <h1 className="brand-name">Z-TRUSS</h1>
+            <span className="brand-tag">v1.0 • STATICS &amp; TRUSS SOLVER</span>
+          </div>
+        </div>
+
+        {/* View Switcher: Studio vs Contributors Team */}
+        <div className="header-nav-tabs">
+          <button
+            type="button"
+            className={`header-nav-tab cursor-target ${currentPage === 'studio' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('studio')}
+            title="Open Interactive Structural Studio"
+          >
+            <Compass size={14} />
+            <span>Truss Studio</span>
+          </button>
+          <button
+            type="button"
+            className={`header-nav-tab cursor-target ${currentPage === 'team' ? 'active' : ''}`}
+            onClick={() => setCurrentPage('team')}
+            title="View Project Contributors & Engineering Team"
+          >
+            <Users size={14} />
+            <span>Project Team</span>
+            <span className="header-tab-badge">8</span>
+          </button>
+        </div>
+
+        {currentPage === 'studio' && (
+          <div className="header-center-info">
+            <div className="info-stat">
+              <span>Joints (j):</span>
+              <span className="info-stat-num">{joints.length}</span>
+            </div>
+            <span>|</span>
+            <div className="info-stat">
+              <span>Members (m):</span>
+              <span className="info-stat-num">{members.length}</span>
+            </div>
+            <span>|</span>
+            <div className="info-stat">
+              <span>Supports (r):</span>
+              <span className="info-stat-num">
+                {supports.reduce((acc, s) => acc + (s.type === 'roller' ? 1 : 2), 0)}
+              </span>
+            </div>
+            <span>|</span>
+            <div className="info-stat">
+              <span>Loads:</span>
+              <span className="info-stat-num">{forces.length}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="header-actions">
+          {currentPage === 'studio' && (
+            <>
+              {/* Engineering Units Quick Switcher */}
+              <div className="header-units-control">
+                <div className="header-unit-group" title="Length Unit: Meters vs Centimeters">
+                  <span className="header-unit-label">LEN</span>
+                  <div className="header-segmented-pill">
+                    <button
+                      type="button"
+                      className={`header-pill-chip cursor-target ${lengthUnit === 'm' ? 'active' : ''}`}
+                      onClick={() => setLengthUnit('m')}
+                    >
+                      m
+                    </button>
+                    <button
+                      type="button"
+                      className={`header-pill-chip cursor-target ${lengthUnit === 'cm' ? 'active' : ''}`}
+                      onClick={() => setLengthUnit('cm')}
+                    >
+                      cm
+                    </button>
+                  </div>
+                </div>
+
+                <div className="header-unit-group" title="Force Unit: Kilonewtons vs Newtons">
+                  <span className="header-unit-label">FORCE</span>
+                  <div className="header-segmented-pill">
+                    <button
+                      type="button"
+                      className={`header-pill-chip cursor-target ${forceUnit === 'kN' ? 'active' : ''}`}
+                      onClick={() => setForceUnit('kN')}
+                    >
+                      kN
+                    </button>
+                    <button
+                      type="button"
+                      className={`header-pill-chip cursor-target ${forceUnit === 'N' ? 'active' : ''}`}
+                      onClick={() => setForceUnit('N')}
+                    >
+                      N
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="header-action-divider" />
+
+              <div className="header-history-btns">
+                <button
+                  type="button"
+                  className={`header-tool-btn undo-btn cursor-target ${!canUndo ? 'disabled' : ''}`}
+                  title="Undo last action (Ctrl+Z)"
+                  onClick={undo}
+                  disabled={!canUndo}
+                >
+                  <Undo2 size={15} />
+                  <span>Undo</span>
+                </button>
+                <button
+                  type="button"
+                  className={`header-tool-btn redo-btn cursor-target ${!canRedo ? 'disabled' : ''}`}
+                  title="Redo next action (Ctrl+Y)"
+                  onClick={redo}
+                  disabled={!canRedo}
+                >
+                  <Redo2 size={15} />
+                  <span>Redo</span>
+                </button>
+              </div>
+
+              <div className="header-action-divider" />
+
+              <button
+                type="button"
+                className="canvas-icon-btn cursor-target"
+                title="Reset Canvas View"
+                onClick={() => resetView(window.innerWidth - 630, window.innerHeight - 70)}
+              >
+                <RotateCcw size={16} />
+              </button>
+            </>
+          )}
+
+          {currentPage === 'team' && (
+            <button
+              type="button"
+              className="header-tool-btn cursor-target"
+              onClick={() => setCurrentPage('studio')}
+            >
+              <Compass size={15} />
+              <span>Back to Studio</span>
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* View router */}
+      {currentPage === 'studio' ? (
+        <>
+          {/* Left Sidebar Toolbox + Canvas + Analysis Studio */}
+          <main className="app-main">
+            <Toolbox />
+            <Canvas />
+            <AnalysisPanel />
+          </main>
+
+          {/* Precision Input Modal */}
+          <PrecisionModal />
+        </>
+      ) : (
+        <TeamPage onBack={() => setCurrentPage('studio')} />
+      )}
+
+      {/* React Bits Target Cursor */}
+      <TargetCursor
+        spinDuration={2}
+        hideDefaultCursor={true}
+        parallaxOn={true}
+        cursorColor="#ffffff"
+        cursorColorOnTarget="#38bdf8"
+      />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TrussProvider>
+      <MainLayout />
+    </TrussProvider>
+  );
+}
