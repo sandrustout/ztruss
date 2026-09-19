@@ -85,10 +85,269 @@ export function findSnapTarget(point, joints, members, options = {}) {
     excludeJointIds = [],
     excludeMemberIds = [],
     jointThreshold = 0.45,
-    memberThreshold = 0.35
+    memberThreshold = 0.35,
+    startJoint = null,
+    itemType = null
   } = options;
 
-  // 1. Prioritize snapping directly to an existing joint
+  const jointMap = new Map(joints.map(j => [j.id, j]));
+
+  // 1. CONSTRAINED SNAPPING (Vertical, Horizontal, Leaned)
+  if (startJoint && itemType && itemType !== 'freehand') {
+    const x0 = startJoint.x;
+    const y0 = startJoint.y;
+
+    if (itemType === 'vertical') {
+      const isUp = point.y >= y0;
+      let bestJoint = null;
+      let minJDist = Infinity;
+
+      for (const j of joints) {
+        if (excludeJointIds.includes(j.id)) continue;
+        if (Math.abs(j.x - x0) <= 0.35) {
+          const dirMatch = isUp ? (j.y >= y0 - 0.05) : (j.y <= y0 + 0.05);
+          if (dirMatch && Math.abs(j.y - y0) > 0.05) {
+            const d = distance(point, j);
+            if (d <= jointThreshold && d < minJDist) {
+              minJDist = d;
+              bestJoint = {
+                type: 'joint',
+                joint: j,
+                x: j.x,
+                y: j.y,
+                distance: d
+              };
+            }
+          }
+        }
+      }
+
+      let bestMember = null;
+      let minMDist = Infinity;
+
+      for (const m of members) {
+        if (excludeMemberIds.includes(m.id)) continue;
+        const start = jointMap.get(m.startJointId);
+        const end = jointMap.get(m.endJointId);
+        if (!start || !end) continue;
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+
+        if (Math.abs(dx) > 1e-5) {
+          const t = (x0 - start.x) / dx;
+          if (t >= -0.002 && t <= 1.002) {
+            const yInt = start.y + t * dy;
+            const dirMatch = isUp ? (yInt >= y0 - 0.05) : (yInt <= y0 + 0.05);
+            if (dirMatch && Math.abs(yInt - y0) > 0.05) {
+              const mouseDist = Math.hypot(point.x - x0, point.y - yInt);
+              const yDist = Math.abs(point.y - yInt);
+              const xDist = Math.abs(point.x - x0);
+              if (mouseDist <= 0.85 || (yDist <= 0.6 && xDist <= 0.65)) {
+                if (mouseDist < minMDist) {
+                  minMDist = mouseDist;
+                  bestMember = {
+                    type: 'member',
+                    member: m,
+                    x: x0,
+                    y: Math.round(yInt * 10000) / 10000,
+                    t: Math.max(0, Math.min(1, t)),
+                    distance: mouseDist
+                  };
+                }
+              }
+            }
+          }
+        } else if (Math.abs(start.x - x0) <= 0.25) {
+          const proj = projectPointOntoSegment(point, start, end);
+          const dirMatch = isUp ? (proj.y >= y0 - 0.05) : (proj.y <= y0 + 0.05);
+          if (dirMatch && Math.abs(proj.y - y0) > 0.05 && proj.distance <= 0.5 && proj.distance < minMDist) {
+            minMDist = proj.distance;
+            bestMember = {
+              type: 'member',
+              member: m,
+              x: x0,
+              y: Math.round(proj.y * 10000) / 10000,
+              t: proj.t,
+              distance: proj.distance
+            };
+          }
+        }
+      }
+
+      if (bestJoint && (!bestMember || bestJoint.distance <= bestMember.distance)) {
+        return bestJoint;
+      }
+      if (bestMember) {
+        return bestMember;
+      }
+    } else if (itemType === 'horizontal') {
+      const isRight = point.x >= x0;
+      let bestJoint = null;
+      let minJDist = Infinity;
+
+      for (const j of joints) {
+        if (excludeJointIds.includes(j.id)) continue;
+        if (Math.abs(j.y - y0) <= 0.35) {
+          const dirMatch = isRight ? (j.x >= x0 - 0.05) : (j.x <= x0 + 0.05);
+          if (dirMatch && Math.abs(j.x - x0) > 0.05) {
+            const d = distance(point, j);
+            if (d <= jointThreshold && d < minJDist) {
+              minJDist = d;
+              bestJoint = {
+                type: 'joint',
+                joint: j,
+                x: j.x,
+                y: j.y,
+                distance: d
+              };
+            }
+          }
+        }
+      }
+
+      let bestMember = null;
+      let minMDist = Infinity;
+
+      for (const m of members) {
+        if (excludeMemberIds.includes(m.id)) continue;
+        const start = jointMap.get(m.startJointId);
+        const end = jointMap.get(m.endJointId);
+        if (!start || !end) continue;
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+
+        if (Math.abs(dy) > 1e-5) {
+          const t = (y0 - start.y) / dy;
+          if (t >= -0.002 && t <= 1.002) {
+            const xInt = start.x + t * dx;
+            const dirMatch = isRight ? (xInt >= x0 - 0.05) : (xInt <= x0 + 0.05);
+            if (dirMatch && Math.abs(xInt - x0) > 0.05) {
+              const mouseDist = Math.hypot(point.x - xInt, point.y - y0);
+              const xDist = Math.abs(point.x - xInt);
+              const yDist = Math.abs(point.y - y0);
+              if (mouseDist <= 0.85 || (xDist <= 0.6 && yDist <= 0.65)) {
+                if (mouseDist < minMDist) {
+                  minMDist = mouseDist;
+                  bestMember = {
+                    type: 'member',
+                    member: m,
+                    x: Math.round(xInt * 10000) / 10000,
+                    y: y0,
+                    t: Math.max(0, Math.min(1, t)),
+                    distance: mouseDist
+                  };
+                }
+              }
+            }
+          }
+        } else if (Math.abs(start.y - y0) <= 0.25) {
+          const proj = projectPointOntoSegment(point, start, end);
+          const dirMatch = isRight ? (proj.x >= x0 - 0.05) : (proj.x <= x0 + 0.05);
+          if (dirMatch && Math.abs(proj.x - x0) > 0.05 && proj.distance <= 0.5 && proj.distance < minMDist) {
+            minMDist = proj.distance;
+            bestMember = {
+              type: 'member',
+              member: m,
+              x: Math.round(proj.x * 10000) / 10000,
+              y: y0,
+              t: proj.t,
+              distance: proj.distance
+            };
+          }
+        }
+      }
+
+      if (bestJoint && (!bestMember || bestJoint.distance <= bestMember.distance)) {
+        return bestJoint;
+      }
+      if (bestMember) {
+        return bestMember;
+      }
+    } else if (itemType === 'right-leaned') {
+      const isRight = point.x >= x0;
+      let bestMember = null;
+      let minMDist = Infinity;
+
+      for (const m of members) {
+        if (excludeMemberIds.includes(m.id)) continue;
+        const start = jointMap.get(m.startJointId);
+        const end = jointMap.get(m.endJointId);
+        if (!start || !end) continue;
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const denom = dx - dy;
+        if (Math.abs(denom) > 1e-5) {
+          const t = ((x0 - start.x) - (y0 - start.y)) / denom;
+          if (t >= -0.002 && t <= 1.002) {
+            const xInt = start.x + t * dx;
+            const yInt = start.y + t * dy;
+            const dirMatch = isRight ? (xInt >= x0 - 0.05) : (xInt <= x0 + 0.05);
+            if (dirMatch && Math.hypot(xInt - x0, yInt - y0) > 0.05) {
+              const mouseDist = Math.hypot(point.x - xInt, point.y - yInt);
+              if (mouseDist <= 0.85 && mouseDist < minMDist) {
+                minMDist = mouseDist;
+                bestMember = {
+                  type: 'member',
+                  member: m,
+                  x: Math.round(xInt * 10000) / 10000,
+                  y: Math.round(yInt * 10000) / 10000,
+                  t: Math.max(0, Math.min(1, t)),
+                  distance: mouseDist
+                };
+              }
+            }
+          }
+        }
+      }
+
+      if (bestMember) return bestMember;
+    } else if (itemType === 'left-leaned') {
+      const isRight = point.x >= x0;
+      let bestMember = null;
+      let minMDist = Infinity;
+
+      for (const m of members) {
+        if (excludeMemberIds.includes(m.id)) continue;
+        const start = jointMap.get(m.startJointId);
+        const end = jointMap.get(m.endJointId);
+        if (!start || !end) continue;
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const denom = dx + dy;
+        if (Math.abs(denom) > 1e-5) {
+          const t = ((x0 - start.x) + (y0 - start.y)) / denom;
+          if (t >= -0.002 && t <= 1.002) {
+            const xInt = start.x + t * dx;
+            const yInt = start.y + t * dy;
+            const dirMatch = isRight ? (xInt >= x0 - 0.05) : (xInt <= x0 + 0.05);
+            if (dirMatch && Math.hypot(xInt - x0, yInt - y0) > 0.05) {
+              const mouseDist = Math.hypot(point.x - xInt, point.y - yInt);
+              if (mouseDist <= 0.85 && mouseDist < minMDist) {
+                minMDist = mouseDist;
+                bestMember = {
+                  type: 'member',
+                  member: m,
+                  x: Math.round(xInt * 10000) / 10000,
+                  y: Math.round(yInt * 10000) / 10000,
+                  t: Math.max(0, Math.min(1, t)),
+                  distance: mouseDist
+                };
+              }
+            }
+          }
+        }
+      }
+
+      if (bestMember) return bestMember;
+    }
+  }
+
+  // 2. STANDARD / UNCONSTRAINED SNAPPING
+  // Prioritize snapping directly to an existing joint
   let closestJoint = null;
   let minJointDist = Infinity;
   for (const j of joints) {
@@ -110,8 +369,7 @@ export function findSnapTarget(point, joints, members, options = {}) {
     };
   }
 
-  // 2. Check if point snaps onto any member span
-  const jointMap = new Map(joints.map(j => [j.id, j]));
+  // Check if point snaps onto any member span
   let closestMember = null;
   let closestProj = null;
   let minMemDist = Infinity;

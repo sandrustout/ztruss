@@ -102,7 +102,7 @@ export function snapEngineeringLength(rawLen) {
  * - Angles snap to mostly used angles (+-1° window) or whole integer degrees
  * - Lengths snap to +/- 0.1 increments or whole numbers
  */
-export function applyMemberAngleConstraint(itemType, startJoint, rawPos) {
+export function applyMemberAngleConstraint(itemType, startJoint, rawPos, isSnapping = false) {
   if (!startJoint) {
     return { ...rawPos };
   }
@@ -127,6 +127,34 @@ export function applyMemberAngleConstraint(itemType, startJoint, rawPos) {
   } else {
     // freehand: snap to mostly used angles within +/-1.5°, or nearest whole degree
     targetAngle = snapEngineeringAngle(rawAngleDeg);
+  }
+
+  // When snapping directly to a member intersection or joint, keep exact coordinate on that line
+  if (isSnapping) {
+    if (itemType === 'vertical') {
+      const snappedLength = Math.round(Math.abs(rawPos.y - startJoint.y) * 10000) / 10000;
+      return {
+        x: startJoint.x,
+        y: Math.round(rawPos.y * 10000) / 10000,
+        snappedLength,
+        snappedAngle: targetAngle
+      };
+    } else if (itemType === 'horizontal') {
+      const snappedLength = Math.round(Math.abs(rawPos.x - startJoint.x) * 10000) / 10000;
+      return {
+        x: Math.round(rawPos.x * 10000) / 10000,
+        y: startJoint.y,
+        snappedLength,
+        snappedAngle: targetAngle
+      };
+    } else {
+      return {
+        x: Math.round(rawPos.x * 10000) / 10000,
+        y: Math.round(rawPos.y * 10000) / 10000,
+        snappedLength: Math.round(dist * 10000) / 10000,
+        snappedAngle: targetAngle
+      };
+    }
   }
 
   const snappedLength = snapEngineeringLength(dist);
@@ -704,7 +732,9 @@ export function TrussProvider({ children }) {
     const snapEnd = findSnapTarget({ x: rawEndX, y: rawEndY }, currentJoints, currentMembers, {
       excludeJointIds: [originJoint.id],
       jointThreshold: 0.45,
-      memberThreshold: 0.35
+      memberThreshold: 0.35,
+      startJoint: originJoint,
+      itemType: itemType
     });
 
     if (snapEnd && snapEnd.type === 'joint') {
@@ -712,10 +742,15 @@ export function TrussProvider({ children }) {
     } else if (snapEnd && snapEnd.type === 'member') {
       const host = snapEnd.member;
       const newJointId = `j_${Date.now() + 1}_${Math.random().toString(36).substring(2, 6)}`;
+      let targetX = snapEnd.x;
+      let targetY = snapEnd.y;
+      if (itemType === 'vertical') targetX = originJoint.x;
+      else if (itemType === 'horizontal') targetY = originJoint.y;
+
       endJoint = {
         id: newJointId,
-        x: snapEnd.x,
-        y: snapEnd.y,
+        x: Math.round(targetX * 10000) / 10000,
+        y: Math.round(targetY * 10000) / 10000,
         label: getJointLabel(currentJoints.length)
       };
       currentJoints.push(endJoint);
@@ -745,12 +780,13 @@ export function TrussProvider({ children }) {
     }
 
     const memberId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const calculatedLength = Math.round(Math.hypot(endJoint.x - originJoint.x, endJoint.y - originJoint.y) * 1000) / 1000;
     const newMember = {
       id: memberId,
       startJointId: originJoint.id,
       endJointId: endJoint.id,
       type: itemType,
-      length,
+      length: calculatedLength || length,
       angle,
       label: 'F',
       queryId: ''
@@ -892,8 +928,8 @@ export function TrussProvider({ children }) {
 
     if (!originJoint) {
       const snapOrigin = findSnapTarget(dropWorldPos, currentJoints, currentMembers, {
-        jointThreshold: 0.45,
-        memberThreshold: 0.35
+        jointThreshold: 0.5,
+        memberThreshold: 0.45
       });
 
       if (snapOrigin && snapOrigin.type === 'joint') {
@@ -959,7 +995,7 @@ export function TrussProvider({ children }) {
     setFreeHandState(prev => {
       if (!prev.isActive || !prev.startJoint) return prev;
       const rawPos = snapTarget ? { x: snapTarget.x, y: snapTarget.y } : mouseWorldPos;
-      const constrainedPos = applyMemberAngleConstraint(prev.itemType, prev.startJoint, rawPos);
+      const constrainedPos = applyMemberAngleConstraint(prev.itemType, prev.startJoint, rawPos, !!snapTarget);
       return {
         ...prev,
         currentPoint: constrainedPos,
@@ -977,7 +1013,7 @@ export function TrussProvider({ children }) {
 
       const originJoint = prev.startJoint;
       const rawEndPos = snapTarget ? { x: snapTarget.x, y: snapTarget.y } : endWorldPos;
-      const constrainedPos = applyMemberAngleConstraint(prev.itemType, originJoint, rawEndPos);
+      const constrainedPos = applyMemberAngleConstraint(prev.itemType, originJoint, rawEndPos, !!snapTarget);
 
       let finalEndX = constrainedPos.x;
       let finalEndY = constrainedPos.y;
@@ -994,10 +1030,19 @@ export function TrussProvider({ children }) {
       } else if (snapTarget && snapTarget.type === 'member') {
         const host = snapTarget.member;
         const newJointId = `j_${Date.now() + 1}_${Math.random().toString(36).substring(2, 6)}`;
+        
+        let targetX = snapTarget.x;
+        let targetY = snapTarget.y;
+        if (prev.itemType === 'vertical') {
+          targetX = originJoint.x;
+        } else if (prev.itemType === 'horizontal') {
+          targetY = originJoint.y;
+        }
+
         targetJoint = {
           id: newJointId,
-          x: snapTarget.x,
-          y: snapTarget.y,
+          x: Math.round(targetX * 10000) / 10000,
+          y: Math.round(targetY * 10000) / 10000,
           label: getJointLabel(currentJoints.length)
         };
         currentJoints.push(targetJoint);
@@ -1034,12 +1079,24 @@ export function TrussProvider({ children }) {
         let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
         if (angle < 0) angle += 360;
 
+        let finalMemberAngle;
+        if (prev.itemType === 'vertical') {
+          finalMemberAngle = (targetJoint.y < originJoint.y) ? 270 : 90;
+        } else if (prev.itemType === 'horizontal') {
+          finalMemberAngle = (targetJoint.x < originJoint.x) ? 180 : 0;
+        } else if (prev.itemType === 'right-leaned') {
+          finalMemberAngle = (targetJoint.x < originJoint.x) ? 225 : 45;
+        } else if (prev.itemType === 'left-leaned') {
+          finalMemberAngle = (targetJoint.x < originJoint.x) ? 135 : 315;
+        } else {
+          finalMemberAngle = (!snapTarget || snapTarget.type !== 'joint') && constrainedPos.snappedAngle !== undefined
+            ? constrainedPos.snappedAngle
+            : Math.round(angle * 10) / 10;
+        }
+
         const finalMemberLength = (!snapTarget || snapTarget.type !== 'joint') && constrainedPos.snappedLength
           ? constrainedPos.snappedLength
-          : Math.round(len * 100) / 100;
-        const finalMemberAngle = (!snapTarget || snapTarget.type !== 'joint') && constrainedPos.snappedAngle !== undefined
-          ? constrainedPos.snappedAngle
-          : Math.round(angle * 10) / 10;
+          : Math.round(len * 1000) / 1000;
 
         const newMember = {
           id: memberId,

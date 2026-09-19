@@ -532,7 +532,9 @@ export default function Canvas() {
       const snap = findSnapTarget(mouseWorld, joints, members, {
         excludeJointIds: freeHandState.startJoint ? [freeHandState.startJoint.id] : [],
         jointThreshold: 0.45,
-        memberThreshold: 0.35
+        memberThreshold: 0.35,
+        startJoint: freeHandState.startJoint,
+        itemType: freeHandState.itemType
       });
 
       if (snap) {
@@ -551,6 +553,27 @@ export default function Canvas() {
 
       updateFreeHandCursor(mouseWorld, snap);
       return;
+    }
+
+    // Hover snap preview when a member tool is armed before first click
+    if (armedTool && armedTool.category === 'member') {
+      const snap = findSnapTarget(mouseWorld, joints, members, {
+        jointThreshold: 0.45,
+        memberThreshold: 0.35
+      });
+      if (snap) {
+        const snapScreen = worldToScreen(snap.x, snap.y);
+        setSnapTarget({
+          id: snap.type === 'joint' ? snap.joint.id : snap.member.id,
+          label: snap.type === 'joint' ? snap.joint.label : (snap.member.label || 'Member'),
+          screenX: snapScreen.x,
+          screenY: snapScreen.y,
+          type: snap.type,
+          ...snap
+        });
+      } else {
+        setSnapTarget(null);
+      }
     }
 
     // If actively dragging the rotate & stretch handle of a member
