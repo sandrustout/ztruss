@@ -454,24 +454,13 @@ export default function Canvas() {
         const initAngle = armedTool.angle !== undefined ? armedTool.angle : 270;
         const mag = armedTool.isUnknown ? 0 : (armedTool.magnitude !== undefined ? armedTool.magnitude : 15);
 
-        // Update existing force on this joint if present
-        const existingForce = forces.find(f => f.jointId === targetJointId);
         let targetForce;
-        if (existingForce) {
-          updateForce(existingForce.id, {
-            magnitude: mag,
-            angle: initAngle,
-            isUnknown: !!armedTool.isUnknown,
-            targetLabel: armedTool.targetLabel || 'P'
-          });
-          targetForce = existingForce;
+        if (armedTool.isUnknown) {
+          targetForce = addForce(targetJointId, 0, initAngle, true, armedTool.targetLabel || 'P');
         } else {
-          if (armedTool.isUnknown) {
-            targetForce = addForce(targetJointId, 0, initAngle, true, armedTool.targetLabel || 'P');
-          } else {
-            targetForce = addForce(targetJointId, mag, initAngle, false, 'F');
-          }
+          targetForce = addForce(targetJointId, mag, initAngle, false, 'F');
         }
+
         if (targetForce?.id) {
           setSelectedItem({ type: 'force', id: targetForce.id });
           setRotatingForce({
@@ -482,6 +471,7 @@ export default function Canvas() {
           });
         }
         setArmedTool(null);
+        return;
       }
       return;
     }
@@ -805,20 +795,9 @@ export default function Canvas() {
       const angle = item.angle !== undefined ? item.angle : 270;
       const mag = item.isUnknown ? 0 : (item.magnitude !== undefined ? item.magnitude : 15);
 
-      const existingForce = forces.find(f => f.jointId === targetJointId);
-      if (existingForce) {
-        updateForce(existingForce.id, {
-          magnitude: mag,
-          angle: angle,
-          isUnknown: !!item.isUnknown,
-          targetLabel: item.targetLabel || 'P'
-        });
-        setSelectedItem({ type: 'force', id: existingForce.id });
-      } else {
-        const createdF = addForce(targetJointId, mag, angle, !!item.isUnknown, item.targetLabel || 'P');
-        if (createdF?.id) {
-          setSelectedItem({ type: 'force', id: createdF.id });
-        }
+      const createdF = addForce(targetJointId, mag, angle, !!item.isUnknown, item.targetLabel || 'P');
+      if (createdF?.id) {
+        setSelectedItem({ type: 'force', id: createdF.id });
       }
     } else if (item.category === 'member') {
       if (item.id === 'freehand') {
@@ -1545,11 +1524,18 @@ export default function Canvas() {
             if (!joint) return null;
 
             const isSelected = selectedItem?.id === force.id;
-            const arrowLen = 50;
 
             // In physics world, angle is measured CCW from +x axis.
             // Screen coordinates have Y flipped: screenAngle = -angle
             const rad = (force.angle * Math.PI) / 180;
+
+            // If multiple forces on the same joint share the same angle, stagger their lengths so both are visible
+            const sameJointSameAngle = forces.filter(
+              f => f.jointId === force.jointId && Math.abs(((f.angle - force.angle) % 360 + 360) % 360) < 5
+            );
+            const dupIndex = sameJointSameAngle.findIndex(f => f.id === force.id);
+            const arrowLen = 50 + (dupIndex > 0 ? dupIndex * 26 : 0);
+
             // Force vector originates away and points TOWARD joint, or vice versa.
             const jointRadius = 7;
             const headX = joint.x - jointRadius * Math.cos(rad);
@@ -1697,20 +1683,9 @@ export default function Canvas() {
                   if (armedTool?.category === 'force') {
                     const initAngle = armedTool.angle !== undefined ? armedTool.angle : 270;
                     const mag = armedTool.isUnknown ? 0 : (armedTool.magnitude !== undefined ? armedTool.magnitude : 15);
-                    const existingForce = forces.find(f => f.jointId === joint.id);
-                    if (existingForce) {
-                      updateForce(existingForce.id, {
-                        magnitude: mag,
-                        angle: initAngle,
-                        isUnknown: !!armedTool.isUnknown,
-                        targetLabel: armedTool.targetLabel || 'P'
-                      });
-                      setSelectedItem({ type: 'force', id: existingForce.id });
-                    } else {
-                      const createdF = addForce(joint.id, mag, initAngle, !!armedTool.isUnknown, armedTool.targetLabel || 'P');
-                      if (createdF?.id) {
-                        setSelectedItem({ type: 'force', id: createdF.id });
-                      }
+                    const createdF = addForce(joint.id, mag, initAngle, !!armedTool.isUnknown, armedTool.targetLabel || 'P');
+                    if (createdF?.id) {
+                      setSelectedItem({ type: 'force', id: createdF.id });
                     }
                     setArmedTool(null);
                     return;
@@ -1720,12 +1695,7 @@ export default function Canvas() {
                     setArmedTool(null);
                     return;
                   }
-                  const attachedForce = forces.find(f => f.jointId === joint.id);
-                  if (attachedForce) {
-                    setSelectedItem({ type: 'force', id: attachedForce.id });
-                  } else {
-                    setSelectedItem({ type: 'joint', id: joint.id });
-                  }
+                  setSelectedItem({ type: 'joint', id: joint.id });
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
