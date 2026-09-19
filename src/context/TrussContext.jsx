@@ -11,7 +11,8 @@ import { checkDeterminacy, classifyStructure } from '../engine/determinacy';
 import { solveTrussMethodOfJoints, solveStructure } from '../engine/physicsSolver';
 
 // Helper to consolidate coincident joints and sanitize members/supports/forces
-export function consolidateJoints(currentJoints, currentMembers, currentSupports, currentForces, tolerance = 0.25) {
+// Helper to consolidate coincident joints and sanitize members/supports/forces
+export function consolidateJoints(currentJoints, currentMembers, currentSupports, currentForces, tolerance = 0.02) {
   let jList = currentJoints.map(j => ({ ...j }));
   let mList = currentMembers.map(m => ({ ...m }));
   let sList = currentSupports.map(s => ({ ...s }));
@@ -69,61 +70,74 @@ export function consolidateJoints(currentJoints, currentMembers, currentSupports
   return { jList, mList, sList, fList, mergedAny };
 }
 
+// Mostly used engineering angles in statics
+export const MOSTLY_USED_ANGLES = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360];
+
+// Snaps angle to mostly used angles if within +/- 1.5 degrees, or nearest whole degree
+export function snapEngineeringAngle(rawDeg) {
+  const norm = ((rawDeg % 360) + 360) % 360;
+  for (const target of MOSTLY_USED_ANGLES) {
+    if (Math.abs(norm - target) <= 1.5 || Math.abs(norm - (target - 360)) <= 1.5) {
+      return target % 360;
+    }
+  }
+  return Math.round(norm);
+}
+
+// Snaps length to +/- 0.1 intervals or exact whole numbers
+export function snapEngineeringLength(rawLen) {
+  const L = Math.max(0.2, rawLen);
+  // Snap to +/- 0.1 intervals
+  let snapped = Math.round(L * 10) / 10;
+  // If within +/- 0.04 of a whole number, snap to the exact whole number
+  const nearestWhole = Math.round(L);
+  if (Math.abs(L - nearestWhole) <= 0.04) {
+    snapped = nearestWhole;
+  }
+  return Math.max(0.2, Math.round(snapped * 10) / 10);
+}
+
 /**
- * Constrains member end position based on member type:
- * - 'horizontal': strictly locks Y to startJoint.y (0° or 180°)
- * - 'vertical': strictly locks X to startJoint.x (90° or 270°)
- * - 'right-leaned': strictly locks to +45° or -135° diagonal (y - y0 = x - x0)
- * - 'left-leaned': strictly locks to +135° or -45° diagonal (y - y0 = -(x - x0))
- * - 'freehand': unconstrained 360°
+ * Constrains member end position based on member type and applies smart snapping:
+ * - Angles snap to mostly used angles (+-1° window) or whole integer degrees
+ * - Lengths snap to +/- 0.1 increments or whole numbers
  */
 export function applyMemberAngleConstraint(itemType, startJoint, rawPos) {
-  if (!startJoint || itemType === 'freehand') {
+  if (!startJoint) {
     return { ...rawPos };
   }
 
   const dx = rawPos.x - startJoint.x;
   const dy = rawPos.y - startJoint.y;
+  let dist = Math.hypot(dx, dy);
+  if (dist < 0.1) dist = 0.1;
 
+  let rawAngleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  if (rawAngleDeg < 0) rawAngleDeg += 360;
+
+  let targetAngle;
   if (itemType === 'horizontal') {
-    let constrainedDx = dx;
-    if (Math.abs(constrainedDx) < 0.2) constrainedDx = constrainedDx >= 0 ? 0.2 : -0.2;
-    return {
-      x: startJoint.x + constrainedDx,
-      y: startJoint.y
-    };
+    targetAngle = (dx < 0) ? 180 : 0;
+  } else if (itemType === 'vertical') {
+    targetAngle = (dy < 0) ? 270 : 90;
+  } else if (itemType === 'right-leaned') {
+    targetAngle = (dx < 0) ? 225 : 45;
+  } else if (itemType === 'left-leaned') {
+    targetAngle = (dx < 0) ? 135 : 315;
+  } else {
+    // freehand: snap to mostly used angles within +/-1.5°, or nearest whole degree
+    targetAngle = snapEngineeringAngle(rawAngleDeg);
   }
 
-  if (itemType === 'vertical') {
-    let constrainedDy = dy;
-    if (Math.abs(constrainedDy) < 0.2) constrainedDy = constrainedDy >= 0 ? 0.2 : -0.2;
-    return {
-      x: startJoint.x,
-      y: startJoint.y + constrainedDy
-    };
-  }
+  const snappedLength = snapEngineeringLength(dist);
+  const rad = (targetAngle * Math.PI) / 180;
 
-  if (itemType === 'right-leaned') {
-    // Exact 45° diagonal line (slope = +1): y - y0 = x - x0
-    let s = (dx + dy) / 2;
-    if (Math.abs(s) < 0.2) s = s >= 0 ? 0.2 : -0.2;
-    return {
-      x: startJoint.x + s,
-      y: startJoint.y + s
-    };
-  }
-
-  if (itemType === 'left-leaned') {
-    // Exact 135° diagonal line (slope = -1): y - y0 = -(x - x0)
-    let s = (-dx + dy) / 2;
-    if (Math.abs(s) < 0.2) s = s >= 0 ? 0.2 : -0.2;
-    return {
-      x: startJoint.x - s,
-      y: startJoint.y + s
-    };
-  }
-
-  return { ...rawPos };
+  return {
+    x: Math.round((startJoint.x + snappedLength * Math.cos(rad)) * 10000) / 10000,
+    y: Math.round((startJoint.y + snappedLength * Math.sin(rad)) * 10000) / 10000,
+    snappedLength,
+    snappedAngle: targetAngle
+  };
 }
 
 const TrussContext = createContext(null);
@@ -591,8 +605,8 @@ export function TrussProvider({ children }) {
     invalidateAnalysis();
   }, [invalidateAnalysis]);
 
-  // Sweep and consolidate all coincident joints within tolerance (default 0.25m)
-  const mergeCoincidentJoints = useCallback((tolerance = 0.25) => {
+  // Sweep and consolidate all coincident joints within tolerance (default 0.02m)
+  const mergeCoincidentJoints = useCallback((tolerance = 0.02) => {
     setJoints(prevJoints => {
       let curM, curS, curF;
       setMembers(m => { curM = m; return m; });
@@ -661,8 +675,8 @@ export function TrussProvider({ children }) {
         const newId = `j_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         originJoint = {
           id: newId,
-          x: Math.round(dropWorldPos.x * 10) / 10,
-          y: Math.round(dropWorldPos.y * 10) / 10,
+          x: Math.round(dropWorldPos.x * 10000) / 10000,
+          y: Math.round(dropWorldPos.y * 10000) / 10000,
           label: getJointLabel(currentJoints.length)
         };
         currentJoints.push(originJoint);
@@ -683,8 +697,8 @@ export function TrussProvider({ children }) {
     }
 
     const rad = (angle * Math.PI) / 180;
-    const rawEndX = Math.round((originJoint.x + length * Math.cos(rad)) * 100) / 100;
-    const rawEndY = Math.round((originJoint.y + length * Math.sin(rad)) * 100) / 100;
+    const rawEndX = Math.round((originJoint.x + length * Math.cos(rad)) * 10000) / 10000;
+    const rawEndY = Math.round((originJoint.y + length * Math.sin(rad)) * 10000) / 10000;
 
     let endJoint = null;
     const snapEnd = findSnapTarget({ x: rawEndX, y: rawEndY }, currentJoints, currentMembers, {
@@ -745,7 +759,7 @@ export function TrussProvider({ children }) {
 
     // Consolidate coincident joints and update labels
     const { jList, mList, sList, fList } = consolidateJoints(
-      currentJoints, currentMembers, currentSupports, currentForces, 0.25
+      currentJoints, currentMembers, currentSupports, currentForces, 0.02
     );
     const { updatedJoints, updatedMembers } = recomputeLabels(jList, mList);
 
@@ -754,7 +768,6 @@ export function TrussProvider({ children }) {
     setSupports(sList);
     setForces(fList);
 
-    setTransformingMemberId(memberId);
     setSelectedItem({ type: 'member', id: memberId });
     setSelectedMemberId(memberId);
     invalidateAnalysis();
@@ -853,7 +866,7 @@ export function TrussProvider({ children }) {
         }
 
         // Consolidate coincident joints
-        const { jList, mList, sList, fList } = consolidateJoints(finalJoints, finalMembers, finalSupports, finalForces, 0.25);
+        const { jList, mList, sList, fList } = consolidateJoints(finalJoints, finalMembers, finalSupports, finalForces, 0.02);
         const { updatedJoints, updatedMembers } = recomputeLabels(jList, mList);
 
         setSupports(sList);
@@ -917,8 +930,8 @@ export function TrussProvider({ children }) {
         const newId = `j_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         originJoint = {
           id: newId,
-          x: Math.round(dropWorldPos.x * 10) / 10,
-          y: Math.round(dropWorldPos.y * 10) / 10,
+          x: Math.round(dropWorldPos.x * 10000) / 10000,
+          y: Math.round(dropWorldPos.y * 10000) / 10000,
           label: getJointLabel(currentJoints.length)
         };
         currentJoints.push(originJoint);
@@ -1006,8 +1019,8 @@ export function TrussProvider({ children }) {
         const newEndId = `j_${Date.now() + 1}_${Math.random().toString(36).substring(2, 6)}`;
         targetJoint = {
           id: newEndId,
-          x: Math.round(finalEndX * 10) / 10,
-          y: Math.round(finalEndY * 10) / 10,
+          x: Math.round(finalEndX * 10000) / 10000,
+          y: Math.round(finalEndY * 10000) / 10000,
           label: getJointLabel(currentJoints.length)
         };
         currentJoints.push(targetJoint);
@@ -1021,20 +1034,27 @@ export function TrussProvider({ children }) {
         let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
         if (angle < 0) angle += 360;
 
+        const finalMemberLength = (!snapTarget || snapTarget.type !== 'joint') && constrainedPos.snappedLength
+          ? constrainedPos.snappedLength
+          : Math.round(len * 100) / 100;
+        const finalMemberAngle = (!snapTarget || snapTarget.type !== 'joint') && constrainedPos.snappedAngle !== undefined
+          ? constrainedPos.snappedAngle
+          : Math.round(angle * 10) / 10;
+
         const newMember = {
           id: memberId,
           startJointId: originJoint.id,
           endJointId: targetJoint.id,
           type: prev.itemType || 'freehand',
-          length: Math.round(len * 100) / 100,
-          angle: Math.round(angle * 10) / 10,
+          length: finalMemberLength,
+          angle: finalMemberAngle,
           label: 'F',
           queryId: ''
         };
         currentMembers.push(newMember);
 
         const { jList, mList, sList, fList } = consolidateJoints(
-          currentJoints, currentMembers, currentSupports, currentForces, 0.25
+          currentJoints, currentMembers, currentSupports, currentForces, 0.02
         );
         const { updatedJoints, updatedMembers } = recomputeLabels(jList, mList);
 
@@ -1181,7 +1201,7 @@ export function TrussProvider({ children }) {
 
     // 1. Forcefully consolidate any coincident joints before analysis
     const { jList, mList, sList, fList, mergedAny } = consolidateJoints(
-      joints, members, supports, forces, 0.25
+      joints, members, supports, forces, 0.02
     );
 
     let activeJoints = joints;
@@ -1586,7 +1606,7 @@ export function TrussProvider({ children }) {
       currentMembers.push(newMember);
 
       const { jList, mList, sList, fList } = consolidateJoints(
-        currentJoints, currentMembers, currentSupports, currentForces, 0.25
+        currentJoints, currentMembers, currentSupports, currentForces, 0.02
       );
       const { updatedJoints, updatedMembers } = recomputeLabels(jList, mList);
 

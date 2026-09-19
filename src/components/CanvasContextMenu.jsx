@@ -191,7 +191,7 @@ export default function CanvasContextMenu({ menuState, onClose }) {
             <div className="input-with-unit">
               <input
                 type="number"
-                step={lengthUnit === 'cm' ? '10' : '0.5'}
+                step={lengthUnit === 'cm' ? '1' : '0.1'}
                 min={lengthUnit === 'cm' ? '10' : '0.2'}
                 max={lengthUnit === 'cm' ? '5000' : '50'}
                 value={memberLength}

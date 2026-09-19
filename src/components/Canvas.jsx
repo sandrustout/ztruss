@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { useTruss } from '../context/TrussContext';
+import { useTruss, snapEngineeringAngle, snapEngineeringLength } from '../context/TrussContext';
 import { distance, findSnapTarget, projectPointOntoSegment } from '../engine/trussGeometry';
 import { Maximize2, ZoomIn, ZoomOut, Eye, EyeOff, Layers, RotateCcw, Undo2, Redo2 } from 'lucide-react';
 import CanvasContextMenu from './CanvasContextMenu';
@@ -563,25 +563,14 @@ export default function Canvas() {
         dist = Math.max(0.5, dist); // Minimum length 0.5m
 
         let rawAngleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        if (rawAngleDeg < 0) rawAngleDeg += 360;
 
-        // Snap to common engineering elevation angles
-        const snapAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180, -30, -45, -60, -90, -120, -135, -150];
-        for (const sa of snapAngles) {
-          if (Math.abs(rawAngleDeg - sa) < 4) {
-            rawAngleDeg = sa;
-            break;
-          }
-        }
+        const snappedAngle = snapEngineeringAngle(rawAngleDeg);
+        const snappedDist = snapEngineeringLength(dist);
 
-        // Snap length to neat intervals (e.g. 0.25m)
-        const roundedDist = Math.round(dist * 4) / 4;
-        if (Math.abs(dist - roundedDist) < 0.08) {
-          dist = roundedDist;
-        }
-
-        const rad = (rawAngleDeg * Math.PI) / 180;
-        let finalEndX = pivot.x + dist * Math.cos(rad);
-        let finalEndY = pivot.y + dist * Math.sin(rad);
+        const rad = (snappedAngle * Math.PI) / 180;
+        let finalEndX = Math.round((pivot.x + snappedDist * Math.cos(rad)) * 10000) / 10000;
+        let finalEndY = Math.round((pivot.y + snappedDist * Math.sin(rad)) * 10000) / 10000;
 
         // Magnetic snap to other existing joints or members
         const snap = findSnapTarget({ x: finalEndX, y: finalEndY }, joints, members, {
@@ -774,11 +763,20 @@ export default function Canvas() {
         }
       }
     } else if (item.category === 'force') {
-      // External force attaches to joint (snap joint or nearest)
-      const targetJoint = snapJoint || (joints.length > 0 ? joints.reduce((closest, j) => {
-        const d = distance(dropWorldPos, j);
-        return (!closest || d < closest.dist) ? { joint: j, dist: d } : closest;
-      }, null)?.joint : null);
+      // External force attaches to joint (snap joint or nearest within 0.6m)
+      let targetJoint = snapJoint;
+      if (!targetJoint && joints.length > 0) {
+        let closest = null;
+        for (const j of joints) {
+          const d = distance(dropWorldPos, j);
+          if (!closest || d < closest.dist) {
+            closest = { joint: j, dist: d };
+          }
+        }
+        if (closest && closest.dist < 0.6) {
+          targetJoint = closest.joint;
+        }
+      }
 
       const targetJointId = targetJoint ? targetJoint.id : addJoint(dropWorldPos.x, dropWorldPos.y);
       const angle = item.angle !== undefined ? item.angle : 270;
@@ -1082,7 +1080,6 @@ export default function Canvas() {
                   }
                   setSelectedMemberId(member.id);
                   setSelectedItem({ type: 'member', id: member.id });
-                  setTransformingMemberId(member.id);
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();

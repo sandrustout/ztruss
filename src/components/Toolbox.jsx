@@ -526,8 +526,11 @@ export default function Toolbox() {
             <button
               type="button"
               className={`toolbox-card-btn force-btn cursor-target ${armedTool?.id === 'force' ? 'active' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, { id: 'force', category: 'force', label: 'Known Force' })}
+              onDragEnd={handleDragEnd}
               onClick={() => handleItemClick({ id: 'force', category: 'force', label: 'Known Force' })}
-              title="Known External Load [F]"
+              title="Known External Load [F] — Click to arm or drag onto joint"
             >
               <div className="toolbox-btn-icon-wrap red">
                 <ArrowDownCircle size={14} />
@@ -544,8 +547,11 @@ export default function Toolbox() {
             <button
               type="button"
               className={`toolbox-card-btn force-btn cursor-target ${armedTool?.id === 'unknown-force' ? 'active' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, { id: 'unknown-force', category: 'force', label: 'Unknown Force' })}
+              onDragEnd={handleDragEnd}
               onClick={() => handleItemClick({ id: 'unknown-force', category: 'force', label: 'Unknown Force' })}
-              title="Unknown Force Target (P) — Solve for equilibrium"
+              title="Unknown Force Target (P) — Click to arm or drag onto joint"
             >
               <div className="toolbox-btn-icon-wrap purple">
                 <HelpCircle size={14} />
