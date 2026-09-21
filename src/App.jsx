@@ -18,7 +18,10 @@ import {
   CircleDot,
   ArrowDownCircle,
   Eraser,
-  Play
+  Play,
+  Sliders,
+  Menu,
+  X
 } from 'lucide-react';
 import './styles/blueprint.css';
 
@@ -47,6 +50,7 @@ function MainLayout() {
 
   const [currentPage, setCurrentPage] = useState('studio');
   const [mobileDrawer, setMobileDrawer] = useState(null); // 'toolbox' | 'analysis' | null
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Prevent browser-level pinch/Ctrl+wheel page zooming globally
   useEffect(() => {
@@ -215,27 +219,16 @@ function MainLayout() {
                 </button>
               </div>
 
-              <div className="header-action-divider" />
-
-              {/* Mobile Header Quick Drawer Toggles (< 1024px only) */}
+              {/* Mobile Header Menu Toggle Button (Visible < 1024px) */}
               <button
                 type="button"
-                className={`mobile-header-btn cursor-target ${mobileDrawer === 'toolbox' ? 'active' : ''}`}
-                onClick={() => setMobileDrawer(prev => prev === 'toolbox' ? null : 'toolbox')}
-                title="Toggle Toolbox Drawer"
+                className={`mobile-header-toggle-btn cursor-target ${mobileMenuOpen ? 'active' : ''}`}
+                onClick={() => setMobileMenuOpen(prev => !prev)}
+                title="Toggle Mobile Header Menu"
+                aria-label="Toggle Mobile Header Menu"
               >
-                <Layers size={15} />
-                <span>Tools</span>
-              </button>
-
-              <button
-                type="button"
-                className={`mobile-header-btn cursor-target ${mobileDrawer === 'analysis' ? 'active' : ''}`}
-                onClick={() => setMobileDrawer(prev => prev === 'analysis' ? null : 'analysis')}
-                title="Toggle Analysis Panel"
-              >
-                <Activity size={15} />
-                <span>Stats</span>
+                {mobileMenuOpen ? <X size={17} /> : <Sliders size={17} />}
+                <span>Menu</span>
               </button>
 
               <button
@@ -250,17 +243,178 @@ function MainLayout() {
           )}
 
           {currentPage === 'team' && (
-            <button
-              type="button"
-              className="header-tool-btn cursor-target"
-              onClick={() => setCurrentPage('studio')}
-            >
-              <Compass size={15} />
-              <span>Back to Studio</span>
-            </button>
+            <div className="header-team-actions">
+              <button
+                type="button"
+                className="header-tool-btn cursor-target"
+                onClick={() => setCurrentPage('studio')}
+              >
+                <Compass size={15} />
+                <span>Truss Studio</span>
+              </button>
+              <button
+                type="button"
+                className={`mobile-header-toggle-btn cursor-target ${mobileMenuOpen ? 'active' : ''}`}
+                onClick={() => setMobileMenuOpen(prev => !prev)}
+                title="Toggle Mobile Header Menu"
+              >
+                {mobileMenuOpen ? <X size={17} /> : <Sliders size={17} />}
+              </button>
+            </div>
           )}
         </div>
       </header>
+
+      {/* Mobile Collapsible Sub-Header Toggle Bar (< 1024px) */}
+      {mobileMenuOpen && (
+        <div className="mobile-header-dropdown-bar">
+          {/* View Page Selector */}
+          <div className="mobile-dropdown-section">
+            <span className="dropdown-section-tag">VIEW MODE</span>
+            <div className="dropdown-nav-row">
+              <button
+                type="button"
+                className={`dropdown-nav-chip ${currentPage === 'studio' ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPage('studio');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Compass size={14} />
+                <span>Truss Studio</span>
+              </button>
+              <button
+                type="button"
+                className={`dropdown-nav-chip ${currentPage === 'team' ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentPage('team');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Users size={14} />
+                <span>Project Team (8)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Unit Switchers */}
+          {currentPage === 'studio' && (
+            <div className="mobile-dropdown-section">
+              <span className="dropdown-section-tag">ENGINEERING UNITS</span>
+              <div className="dropdown-units-row">
+                <div className="dropdown-unit-group">
+                  <span className="dropdown-unit-lbl">LENGTH</span>
+                  <div className="dropdown-pills">
+                    <button
+                      type="button"
+                      className={`dropdown-pill-btn ${lengthUnit === 'm' ? 'active' : ''}`}
+                      onClick={() => setLengthUnit('m')}
+                    >
+                      Meters (m)
+                    </button>
+                    <button
+                      type="button"
+                      className={`dropdown-pill-btn ${lengthUnit === 'cm' ? 'active' : ''}`}
+                      onClick={() => setLengthUnit('cm')}
+                    >
+                      Centimeters (cm)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dropdown-unit-group">
+                  <span className="dropdown-unit-lbl">FORCE</span>
+                  <div className="dropdown-pills">
+                    <button
+                      type="button"
+                      className={`dropdown-pill-btn ${forceUnit === 'kN' ? 'active' : ''}`}
+                      onClick={() => setForceUnit('kN')}
+                    >
+                      Kilonewtons (kN)
+                    </button>
+                    <button
+                      type="button"
+                      className={`dropdown-pill-btn ${forceUnit === 'N' ? 'active' : ''}`}
+                      onClick={() => setForceUnit('N')}
+                    >
+                      Newtons (N)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Drawers & Stats */}
+          {currentPage === 'studio' && (
+            <div className="mobile-dropdown-section">
+              <span className="dropdown-section-tag">PANELS &amp; STATS</span>
+              <div className="dropdown-panels-row">
+                <button
+                  type="button"
+                  className={`dropdown-panel-btn ${mobileDrawer === 'toolbox' ? 'active' : ''}`}
+                  onClick={() => {
+                    setMobileDrawer(d => d === 'toolbox' ? null : 'toolbox');
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <Layers size={14} />
+                  <span>Toolbox ({joints.length}J, {members.length}M)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dropdown-panel-btn ${mobileDrawer === 'analysis' ? 'active' : ''}`}
+                  onClick={() => {
+                    setMobileDrawer(d => d === 'analysis' ? null : 'analysis');
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <Activity size={14} />
+                  <span>Analysis Answers &amp; Reactions</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* History Undo / Redo & Fit */}
+          {currentPage === 'studio' && (
+            <div className="mobile-dropdown-section">
+              <span className="dropdown-section-tag">WORKSPACE ACTIONS</span>
+              <div className="dropdown-actions-row">
+                <button
+                  type="button"
+                  className={`dropdown-action-btn ${!canUndo ? 'disabled' : ''}`}
+                  onClick={undo}
+                  disabled={!canUndo}
+                >
+                  <Undo2 size={14} />
+                  <span>Undo</span>
+                </button>
+                <button
+                  type="button"
+                  className={`dropdown-action-btn ${!canRedo ? 'disabled' : ''}`}
+                  onClick={redo}
+                  disabled={!canRedo}
+                >
+                  <Redo2 size={14} />
+                  <span>Redo</span>
+                </button>
+                <button
+                  type="button"
+                  className="dropdown-action-btn"
+                  onClick={() => {
+                    resetView(window.innerWidth, window.innerHeight - 70);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <RotateCcw size={14} />
+                  <span>Reset Fit</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* View router */}
       {currentPage === 'studio' ? (
@@ -269,7 +423,10 @@ function MainLayout() {
           <main className="app-main">
             {/* Left Sidebar Toolbox (Drawer on mobile) */}
             <div className={`toolbox-drawer-wrapper ${mobileDrawer === 'toolbox' ? 'open' : ''}`}>
-              <Toolbox onClose={() => setMobileDrawer(null)} />
+              <Toolbox
+                onClose={() => setMobileDrawer(null)}
+                onShowAnalysis={() => setMobileDrawer('analysis')}
+              />
             </div>
 
             {/* Interactive Canvas */}

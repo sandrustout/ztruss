@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useTruss } from '../context/TrussContext';
 import { classifyStructure } from '../engine/determinacy';
 import {
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 export default function AnalysisPanel({ onClose }) {
+  const resultsRef = useRef(null);
   const {
     joints,
     members,
@@ -54,6 +55,15 @@ export default function AnalysisPanel({ onClose }) {
   const determinacy = analysisResult?.determinacy;
   const solver = analysisResult?.solverResult;
   const isSolved = analysisResult?.solved;
+
+  // Auto-scroll down to the answers / solutions section whenever analysis is solved
+  useEffect(() => {
+    if (isSolved && resultsRef.current) {
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [isSolved]);
 
   // Real-time classification: use solved classification if available, else live preview
   const liveClassification = classifyStructure({ joints, members, supports, forces, structureMode });
@@ -316,7 +326,7 @@ export default function AnalysisPanel({ onClose }) {
 
         {/* STAGE 1: Support Reactions & Global Equilibrium (Dedicated Answer Section) */}
         {isSolved && (
-          <div className="analysis-card reactions-section-card">
+          <div className="analysis-card reactions-section-card" ref={resultsRef}>
             <div className="card-header">
               <div className="section-title-wrapper">
                 <span className="section-stage-tag">STAGE 1</span>

@@ -73,7 +73,7 @@ const ALL_MEMBER_TOOLS = [
   }
 ];
 
-export default function Toolbox({ onClose }) {
+export default function Toolbox({ onClose, onShowAnalysis }) {
   const {
     loadPreset,
     clearCanvas,
@@ -682,7 +682,12 @@ export default function Toolbox({ onClose }) {
           <button
             type="button"
             className="toolbox-primary-analyze-btn cursor-target"
-            onClick={() => runAnalysis && runAnalysis()}
+            onClick={() => {
+              if (runAnalysis) runAnalysis();
+              if (onShowAnalysis && typeof window !== 'undefined' && window.innerWidth < 1024) {
+                onShowAnalysis();
+              }
+            }}
             title="Solve Structure Equilibrium [Enter]"
           >
             <Play size={14} fill="currentColor" />

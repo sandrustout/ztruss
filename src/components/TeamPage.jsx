@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Users,
   Award,
@@ -10,7 +10,6 @@ import {
   Compass,
   Layers,
   Zap,
-  Search,
   BookOpen
 } from 'lucide-react';
 
@@ -98,20 +97,6 @@ export const CONTRIBUTORS_DATA = [
 ];
 
 export default function TeamPage({ onBack }) {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredContributors = CONTRIBUTORS_DATA.filter(member => {
-    const term = searchTerm.toLowerCase().trim();
-    if (!term) return true;
-    return (
-      member.name.toLowerCase().includes(term) ||
-      member.rollNo.toLowerCase().includes(term) ||
-      member.role.toLowerCase().includes(term) ||
-      member.specialty.toLowerCase().includes(term) ||
-      member.tags.some(t => t.toLowerCase().includes(term))
-    );
-  });
-
   return (
     <div className="team-page-wrapper">
       {/* Top Header Navigation Strip */}
@@ -131,26 +116,6 @@ export default function TeamPage({ onBack }) {
             <Users size={14} /> 8 CONTRIBUTORS
           </span>
           <span className="team-topbar-title">Z-Truss Engineering Project Team</span>
-        </div>
-
-        <div className="team-search-box">
-          <Search size={14} className="team-search-icon" />
-          <input
-            type="text"
-            className="team-search-input"
-            placeholder="Search by name, roll no, or role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              className="team-search-clear"
-              onClick={() => setSearchTerm('')}
-            >
-              ✕
-            </button>
-          )}
         </div>
       </div>
 
@@ -205,7 +170,7 @@ export default function TeamPage({ onBack }) {
         </div>
 
         <div className="contributors-grid">
-          {filteredContributors.map((member, index) => {
+          {CONTRIBUTORS_DATA.map((member, index) => {
             return (
               <div
                 key={member.id}
@@ -254,19 +219,6 @@ export default function TeamPage({ onBack }) {
             );
           })}
         </div>
-
-        {filteredContributors.length === 0 && (
-          <div className="team-empty-state">
-            <p>No contributors found matching "{searchTerm}".</p>
-            <button
-              type="button"
-              className="team-reset-search-btn cursor-target"
-              onClick={() => setSearchTerm('')}
-            >
-              Reset Search
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
