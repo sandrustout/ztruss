@@ -165,7 +165,7 @@ export default function TeamPage({ onBack }) {
             TEAM MEMBERS &amp; REGISTRATION NUMBERS
           </h2>
           <span className="contributors-count">
-            Showing {filteredContributors.length} of {CONTRIBUTORS_DATA.length} Contributors
+            {CONTRIBUTORS_DATA.length} Core Contributors
           </span>
         </div>
 

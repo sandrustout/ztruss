@@ -219,6 +219,30 @@ function MainLayout() {
                 </button>
               </div>
 
+              {/* Mobile Quick Undo / Redo in Header (< 1024px) */}
+              <div className="mobile-header-history">
+                <button
+                  type="button"
+                  className={`mobile-header-icon-btn cursor-target ${!canUndo ? 'disabled' : ''}`}
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title="Undo last action"
+                  aria-label="Undo"
+                >
+                  <Undo2 size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-header-icon-btn cursor-target ${!canRedo ? 'disabled' : ''}`}
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title="Redo next action"
+                  aria-label="Redo"
+                >
+                  <Redo2 size={15} />
+                </button>
+              </div>
+
               {/* Mobile Header Menu Toggle Button (Visible < 1024px) */}
               <button
                 type="button"
@@ -235,7 +259,7 @@ function MainLayout() {
                 type="button"
                 className="canvas-icon-btn cursor-target"
                 title="Reset Canvas View"
-                onClick={() => resetView(window.innerWidth - 630, window.innerHeight - 70)}
+                onClick={() => resetView(window.innerWidth < 1024 ? window.innerWidth : window.innerWidth - 630, window.innerHeight - 70)}
               >
                 <RotateCcw size={16} />
               </button>
@@ -561,6 +585,28 @@ function MainLayout() {
               >
                 <Eraser size={15} />
                 <span>Erase</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${!canUndo ? 'disabled' : ''}`}
+                onClick={undo}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 size={15} />
+                <span>Undo</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${!canRedo ? 'disabled' : ''}`}
+                onClick={redo}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo2 size={15} />
+                <span>Redo</span>
               </button>
 
               <button
