@@ -95,6 +95,21 @@ export default function Canvas() {
   const forcesRef = useRef(forces);
   forcesRef.current = forces;
 
+  // Touch gesture tracking refs for mobile drawing & pinch zoom
+  const touchPinchRef = useRef(null); // { dist, zoom, midpoint: {x, y}, pan: {panX, panY} }
+  const touchStartPosRef = useRef(null); // { clientX, clientY, sx, sy, time, worldPos }
+  const longPressTimerRef = useRef(null);
+  const touchDragDrawRef = useRef(null); // { startedFreehand: boolean, startClientX, startClientY, startTime }
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
   // Keyboard listener: Space (pan), Delete/Backspace (delete), Esc (cancel), D (draw), E (erase), R (rotate force)
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -679,6 +694,449 @@ export default function Canvas() {
     }
   };
 
+  // ========================================================
+  // MOBILE TOUCH GESTURE ENGINE (Draw, Pan, Pinch Zoom, Long-Press)
+  // ========================================================
+  const handleTouchStart = (e) => {
+    // 1. Multi-Touch: 2 fingers = Pinch to Zoom & 2-Finger Pan
+    if (e.touches.length === 2) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      setIsPanning(false);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const mx = (t1.clientX + t2.clientX) / 2;
+      const my = (t1.clientY + t2.clientY) / 2;
+      touchPinchRef.current = {
+        dist: Math.max(dist, 1),
+        zoom: viewTransform.zoom,
+        midpoint: { x: mx, y: my },
+        pan: { x: viewTransform.panX, y: viewTransform.panY }
+      };
+      return;
+    }
+
+    if (e.touches.length !== 1) return;
+
+    const touch = e.touches[0];
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const sx = touch.clientX - rect.left;
+    const sy = touch.clientY - rect.top;
+    const mouseWorld = screenToWorld(sx, sy);
+
+    touchStartPosRef.current = {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      sx,
+      sy,
+      time: Date.now(),
+      worldPos: mouseWorld
+    };
+
+    // 2. Continuous Eraser Sweep Mode
+    if (activeTool === 'eraser') {
+      isErasingRef.current = true;
+      setIsErasingActive(true);
+      hasErasedInStrokeRef.current = false;
+      setEraserPos({ x: sx, y: sy });
+      checkAndPerformSweepErase(mouseWorld);
+      return;
+    }
+
+    // 3. Armed Tool Placement (Member, Support, Force)
+    if (armedTool) {
+      // Find snap target joint with touch-friendly 36px threshold
+      let snapJoint = null;
+      let minPixDist = 36;
+      for (const joint of joints) {
+        const jScreen = worldToScreen(joint.x, joint.y);
+        const pixDist = Math.hypot(sx - jScreen.x, sy - jScreen.y);
+        if (pixDist < minPixDist) {
+          minPixDist = pixDist;
+          snapJoint = joint;
+        }
+      }
+
+      if (armedTool.category === 'member') {
+        if (!freeHandState.isActive) {
+          startFreeHandPlacement(armedTool.id, snapJoint, mouseWorld);
+          touchDragDrawRef.current = {
+            startedFreehand: true,
+            startClientX: touch.clientX,
+            startClientY: touch.clientY,
+            startTime: Date.now()
+          };
+        } else {
+          commitFreeHandPlacement(mouseWorld, freeHandState.snapTarget);
+          touchDragDrawRef.current = null;
+        }
+      } else if (armedTool.category === 'support') {
+        const targetJointId = snapJoint ? snapJoint.id : addJoint(mouseWorld.x, mouseWorld.y);
+        addSupport(targetJointId, armedTool.id);
+        if (navigator.vibrate) navigator.vibrate(12);
+      } else if (armedTool.category === 'force') {
+        const targetJoint = snapJoint || (joints.length > 0 ? joints.reduce((closest, j) => {
+          const d = distance(mouseWorld, j);
+          return (!closest || d < closest.dist) ? { joint: j, dist: d } : closest;
+        }, null)?.joint : null);
+
+        const targetJointId = targetJoint ? targetJoint.id : addJoint(mouseWorld.x, mouseWorld.y);
+        const initAngle = armedTool.angle !== undefined ? armedTool.angle : 270;
+        const mag = armedTool.isUnknown ? 0 : (armedTool.magnitude !== undefined ? armedTool.magnitude : 15);
+
+        let targetForce;
+        if (armedTool.isUnknown) {
+          targetForce = addForce(targetJointId, 0, initAngle, true, armedTool.targetLabel || 'P');
+        } else {
+          targetForce = addForce(targetJointId, mag, initAngle, false, 'F');
+        }
+
+        if (targetForce?.id) {
+          setSelectedItem({ type: 'force', id: targetForce.id });
+          setRotatingForce({
+            forceId: targetForce.id,
+            jointId: targetJointId,
+            startAngle: initAngle,
+            isUnknown: !!armedTool.isUnknown
+          });
+        }
+        setArmedTool(null);
+        if (navigator.vibrate) navigator.vibrate(12);
+      }
+      return;
+    }
+
+    // 4. Free-Hand Active Placement (commit on second tap)
+    if (freeHandState.isActive) {
+      commitFreeHandPlacement(mouseWorld, freeHandState.snapTarget);
+      touchDragDrawRef.current = null;
+      return;
+    }
+
+    // 5. Default Selection, Pan, and Long-Press Context Menu
+    let hitItem = null;
+    let hitJoint = null;
+    let hitSupport = null;
+    let hitForce = null;
+    let hitMember = null;
+
+    for (const j of joints) {
+      const jScreen = worldToScreen(j.x, j.y);
+      if (Math.hypot(sx - jScreen.x, sy - jScreen.y) <= 32) {
+        hitJoint = j;
+        break;
+      }
+    }
+
+    if (!hitJoint) {
+      for (const s of supports) {
+        const j = joints.find(jj => jj.id === s.jointId);
+        if (j) {
+          const jScreen = worldToScreen(j.x, j.y);
+          if (Math.hypot(sx - jScreen.x, sy - jScreen.y) <= 32) {
+            hitSupport = s;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!hitJoint && !hitSupport) {
+      for (const f of forces) {
+        const j = joints.find(jj => jj.id === f.jointId);
+        if (j) {
+          const jScreen = worldToScreen(j.x, j.y);
+          if (Math.hypot(sx - jScreen.x, sy - jScreen.y) <= 36) {
+            hitForce = f;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!hitJoint && !hitSupport && !hitForce) {
+      for (const m of members) {
+        const jA = joints.find(j => j.id === m.startJointId);
+        const jB = joints.find(j => j.id === m.endJointId);
+        if (jA && jB) {
+          const proj = projectPointOntoSegment(mouseWorld, jA, jB);
+          const screenDist = proj.distance * viewTransform.zoom;
+          if (screenDist <= 24) {
+            hitMember = m;
+            break;
+          }
+        }
+      }
+    }
+
+    if (hitJoint) {
+      setSelectedItem({ type: 'joint', id: hitJoint.id });
+      hitItem = { type: 'joint', id: hitJoint.id };
+    } else if (hitSupport) {
+      setSelectedItem({ type: 'support', id: hitSupport.id });
+      hitItem = { type: 'joint', id: hitSupport.jointId };
+    } else if (hitForce) {
+      setSelectedItem({ type: 'force', id: hitForce.id });
+      hitItem = { type: 'force', id: hitForce.id };
+    } else if (hitMember) {
+      setSelectedItem({ type: 'member', id: hitMember.id });
+      setSelectedMemberId(hitMember.id);
+      hitItem = { type: 'member', id: hitMember.id };
+    } else {
+      setSelectedItem(null);
+      setTransformingMemberId(null);
+      setIsPanning(true);
+      setStartPan({ x: touch.clientX - viewTransform.panX, y: touch.clientY - viewTransform.panY });
+    }
+
+    // Long Press Timer (450ms) to open Context Menu on mobile touch
+    longPressTimerRef.current = setTimeout(() => {
+      if (navigator.vibrate) navigator.vibrate(20);
+      setMenuState({
+        isOpen: true,
+        x: touch.clientX,
+        y: touch.clientY,
+        targetType: hitItem ? hitItem.type : null,
+        targetId: hitItem ? hitItem.id : null,
+        worldPos: mouseWorld
+      });
+      setIsPanning(false);
+    }, 450);
+  };
+
+  const handleTouchMove = (e) => {
+    // 1. Pinch to Zoom & Pan
+    if (e.touches.length === 2 && touchPinchRef.current) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const mx = (t1.clientX + t2.clientX) / 2;
+      const my = (t1.clientY + t2.clientY) / 2;
+      const { dist: initialDist, zoom: initialZoom, midpoint: initialMid, pan: initialPan } = touchPinchRef.current;
+      const scale = dist / initialDist;
+      const newZoom = Math.max(15, Math.min(250, initialZoom * scale));
+
+      const worldX = (initialMid.x - initialPan.x) / initialZoom;
+      const worldY = -(initialMid.y - initialPan.y) / initialZoom;
+      const newPanX = mx - worldX * newZoom;
+      const newPanY = my + worldY * newZoom;
+
+      setViewTransform({ zoom: newZoom, panX: newPanX, panY: newPanY });
+      return;
+    }
+
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+
+    // Cancel long press timer if finger moves > 8px
+    if (touchStartPosRef.current && longPressTimerRef.current) {
+      const moveDist = Math.hypot(touch.clientX - touchStartPosRef.current.clientX, touch.clientY - touchStartPosRef.current.clientY);
+      if (moveDist > 8) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const sx = touch.clientX - rect.left;
+    const sy = touch.clientY - rect.top;
+    const mouseWorld = screenToWorld(sx, sy);
+
+    // Eraser Sweep
+    if (activeTool === 'eraser') {
+      setEraserPos({ x: sx, y: sy });
+      if (isErasingRef.current) {
+        checkAndPerformSweepErase(mouseWorld);
+      }
+      return;
+    }
+
+    // Active Free-Hand Placement Tracking
+    if (freeHandState.isActive) {
+      const snap = findSnapTarget(mouseWorld, joints, members, {
+        excludeJointIds: freeHandState.startJoint ? [freeHandState.startJoint.id] : [],
+        jointThreshold: 0.55,
+        memberThreshold: 0.4,
+        startJoint: freeHandState.startJoint,
+        itemType: freeHandState.itemType
+      });
+
+      if (snap) {
+        const snapScreen = worldToScreen(snap.x, snap.y);
+        setSnapTarget({
+          id: snap.type === 'joint' ? snap.joint.id : snap.member.id,
+          label: snap.type === 'joint' ? snap.joint.label : (snap.member.label || 'Member'),
+          screenX: snapScreen.x,
+          screenY: snapScreen.y,
+          type: snap.type,
+          ...snap
+        });
+      } else {
+        setSnapTarget(null);
+      }
+
+      updateFreeHandCursor(mouseWorld, snap);
+      return;
+    }
+
+    // Member Transform Handle Dragging
+    if (draggingHandle) {
+      const pivot = joints.find(j => j.id === draggingHandle.pivotJointId);
+      if (pivot) {
+        let dx = mouseWorld.x - pivot.x;
+        let dy = mouseWorld.y - pivot.y;
+        let dist = Math.hypot(dx, dy);
+        dist = Math.max(0.5, dist);
+
+        let rawAngleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        if (rawAngleDeg < 0) rawAngleDeg += 360;
+
+        const snappedAngle = snapEngineeringAngle(rawAngleDeg);
+        const snappedDist = snapEngineeringLength(dist);
+
+        const rad = (snappedAngle * Math.PI) / 180;
+        let finalEndX = Math.round((pivot.x + snappedDist * Math.cos(rad)) * 10000) / 10000;
+        let finalEndY = Math.round((pivot.y + snappedDist * Math.sin(rad)) * 10000) / 10000;
+
+        const snap = findSnapTarget({ x: finalEndX, y: finalEndY }, joints, members, {
+          excludeJointIds: [pivot.id, draggingHandle.endJointId],
+          excludeMemberIds: [draggingHandle.memberId],
+          jointThreshold: 0.55,
+          memberThreshold: 0.4
+        });
+
+        if (snap) {
+          finalEndX = snap.x;
+          finalEndY = snap.y;
+          const snapScreen = worldToScreen(snap.x, snap.y);
+          setSnapTarget({
+            id: snap.type === 'joint' ? snap.joint.id : snap.member.id,
+            label: snap.type === 'joint' ? snap.joint.label : (snap.member.label || 'Member'),
+            screenX: snapScreen.x,
+            screenY: snapScreen.y,
+            type: snap.type
+          });
+        } else {
+          setSnapTarget(null);
+        }
+
+        updateMemberEndpoint(draggingHandle.memberId, finalEndX, finalEndY);
+      }
+      return;
+    }
+
+    // Force Rotation Handle Dragging
+    if (rotatingForce) {
+      const joint = joints.find(j => j.id === rotatingForce.jointId);
+      if (joint) {
+        const jScreen = worldToScreen(joint.x, joint.y);
+        const dx = sx - jScreen.x;
+        const dy = sy - jScreen.y;
+        if (Math.hypot(dx, dy) > 8) {
+          const rawAngleRad = Math.atan2(dy, -dx);
+          let deg = (rawAngleRad * 180) / Math.PI;
+          deg = ((deg % 360) + 360) % 360;
+
+          const snapCardinals = [0, 45, 90, 135, 180, 225, 270, 315];
+          let snapped = Math.round(deg / 15) * 15;
+          for (const card of snapCardinals) {
+            if (Math.abs(deg - card) < 6 || Math.abs(deg - (card + 360)) < 6) {
+              snapped = card;
+              break;
+            }
+          }
+          snapped = ((snapped % 360) + 360) % 360;
+          updateForce(rotatingForce.forceId, { angle: snapped });
+        }
+      }
+      return;
+    }
+
+    // Pan Canvas
+    if (isPanning) {
+      setViewTransform(prev => ({
+        ...prev,
+        panX: touch.clientX - startPan.x,
+        panY: touch.clientY - startPan.y
+      }));
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (e.touches.length < 2) {
+      touchPinchRef.current = null;
+    }
+
+    setIsPanning(false);
+
+    if (rotatingForce) {
+      setRotatingForce(null);
+    }
+
+    if (activeTool === 'eraser' || isErasingRef.current) {
+      isErasingRef.current = false;
+      setIsErasingActive(false);
+      if (hasErasedInStrokeRef.current) {
+        commitSweepStroke();
+        hasErasedInStrokeRef.current = false;
+      }
+      setEraserPos(null);
+    }
+
+    if (draggingHandle) {
+      commitMemberTransform(draggingHandle.memberId);
+      setDraggingHandle(null);
+      setSnapTarget(null);
+    }
+
+    // Drag-to-Draw Release Gesture:
+    // If user touched down on start joint and dragged > 35px across the screen, commit placement on release!
+    if (freeHandState?.isActive && touchDragDrawRef.current?.startedFreehand) {
+      const lastTouch = e.changedTouches?.[0];
+      if (lastTouch && touchDragDrawRef.current) {
+        const dragDist = Math.hypot(
+          lastTouch.clientX - touchDragDrawRef.current.startClientX,
+          lastTouch.clientY - touchDragDrawRef.current.startClientY
+        );
+        if (dragDist > 35) {
+          const rect = svgRef.current?.getBoundingClientRect();
+          if (rect) {
+            const sx = lastTouch.clientX - rect.left;
+            const sy = lastTouch.clientY - rect.top;
+            const endWorld = screenToWorld(sx, sy);
+            commitFreeHandPlacement(endWorld, freeHandState.snapTarget);
+            if (navigator.vibrate) navigator.vibrate(15);
+          }
+        }
+      }
+      touchDragDrawRef.current = null;
+    }
+
+    if (!freeHandState?.isActive) {
+      setSnapTarget(null);
+    }
+  };
+
+  const handleTouchCancel = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchPinchRef.current = null;
+    setIsPanning(false);
+    touchDragDrawRef.current = null;
+  };
+
   // Drag and Drop from Toolbox
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -971,6 +1429,10 @@ export default function Canvas() {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
       >
         <defs>
           {/* Engineering Ground Hatch Pattern */}
@@ -1244,12 +1706,26 @@ export default function Canvas() {
                           endJointId: member.endJointId
                         });
                       }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        setDraggingHandle({
+                          memberId: member.id,
+                          pivotJointId: member.startJointId,
+                          endJointId: member.endJointId
+                        });
+                      }}
                     />
 
                     {/* Done / Confirm Button */}
                     <g
                       transform={`translate(${end.x + 32}, ${end.y - 12})`}
                       onClick={(e) => {
+                        e.stopPropagation();
+                        commitMemberTransform(member.id);
+                        setTransformingMemberId(null);
+                        setSnapTarget(null);
+                      }}
+                      onTouchEnd={(e) => {
                         e.stopPropagation();
                         commitMemberTransform(member.id);
                         setTransformingMemberId(null);

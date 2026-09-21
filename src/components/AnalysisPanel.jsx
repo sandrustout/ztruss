@@ -16,10 +16,11 @@ import {
   ShieldCheck,
   Zap,
   Layers,
-  Cpu
+  Cpu,
+  X
 } from 'lucide-react';
 
-export default function AnalysisPanel() {
+export default function AnalysisPanel({ onClose }) {
   const {
     joints,
     members,
@@ -114,14 +115,26 @@ export default function AnalysisPanel() {
       {/* Header with Run Button */}
       <div className="analysis-header">
         <div className="panel-title-row">
-          <span className="panel-tag">STRUCTURAL ENGINE</span>
-          <span className="engine-badge">
-            {isMachine
-              ? 'Linkage & Pin Mechanics'
-              : isFrame
-              ? 'Beam-Column Stiffness & FBD'
-              : 'Method of Joints'}
-          </span>
+          <div className="panel-title-tags">
+            <span className="panel-tag">STRUCTURAL ENGINE</span>
+            <span className="engine-badge">
+              {isMachine
+                ? 'Linkage & Pin Mechanics'
+                : isFrame
+                ? 'Beam-Column Stiffness & FBD'
+                : 'Method of Joints'}
+            </span>
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              className="mobile-drawer-close-btn cursor-target"
+              onClick={onClose}
+              title="Close Analysis Panel"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
         <h2 className="panel-title">Analysis & Query</h2>
 

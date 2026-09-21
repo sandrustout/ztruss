@@ -73,7 +73,7 @@ const ALL_MEMBER_TOOLS = [
   }
 ];
 
-export default function Toolbox() {
+export default function Toolbox({ onClose }) {
   const {
     loadPreset,
     clearCanvas,
@@ -188,6 +188,9 @@ export default function Toolbox() {
     } else {
       setArmedTool(payload);
       setActiveTool('select');
+      if (onClose && typeof window !== 'undefined' && window.innerWidth < 1024) {
+        onClose();
+      }
     }
   };
 
@@ -232,6 +235,16 @@ export default function Toolbox() {
           <span>{joints.length}J</span>
           <span>•</span>
           <span>{members.length}M</span>
+          {onClose && (
+            <button
+              type="button"
+              className="mobile-drawer-close-btn cursor-target"
+              onClick={onClose}
+              title="Close Toolbox"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </div>
 

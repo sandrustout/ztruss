@@ -6,7 +6,20 @@ import AnalysisPanel from './components/AnalysisPanel';
 import PrecisionModal from './components/PrecisionModal';
 import TeamPage from './components/TeamPage';
 import TargetCursor from './components/TargetCursor';
-import { RotateCcw, Compass, Users, Undo2, Redo2 } from 'lucide-react';
+import {
+  RotateCcw,
+  Compass,
+  Users,
+  Undo2,
+  Redo2,
+  Layers,
+  Activity,
+  Minus,
+  CircleDot,
+  ArrowDownCircle,
+  Eraser,
+  Play
+} from 'lucide-react';
 import './styles/blueprint.css';
 
 function MainLayout() {
@@ -23,10 +36,17 @@ function MainLayout() {
     lengthUnit,
     setLengthUnit,
     forceUnit,
-    setForceUnit
+    setForceUnit,
+    armedTool,
+    setArmedTool,
+    activeTool,
+    setActiveTool,
+    runAnalysis,
+    freeHandState
   } = useTruss();
 
   const [currentPage, setCurrentPage] = useState('studio');
+  const [mobileDrawer, setMobileDrawer] = useState(null); // 'toolbox' | 'analysis' | null
 
   // Prevent browser-level pinch/Ctrl+wheel page zooming globally
   useEffect(() => {
@@ -197,6 +217,27 @@ function MainLayout() {
 
               <div className="header-action-divider" />
 
+              {/* Mobile Header Quick Drawer Toggles (< 1024px only) */}
+              <button
+                type="button"
+                className={`mobile-header-btn cursor-target ${mobileDrawer === 'toolbox' ? 'active' : ''}`}
+                onClick={() => setMobileDrawer(prev => prev === 'toolbox' ? null : 'toolbox')}
+                title="Toggle Toolbox Drawer"
+              >
+                <Layers size={15} />
+                <span>Tools</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-header-btn cursor-target ${mobileDrawer === 'analysis' ? 'active' : ''}`}
+                onClick={() => setMobileDrawer(prev => prev === 'analysis' ? null : 'analysis')}
+                title="Toggle Analysis Panel"
+              >
+                <Activity size={15} />
+                <span>Stats</span>
+              </button>
+
               <button
                 type="button"
                 className="canvas-icon-btn cursor-target"
@@ -226,9 +267,158 @@ function MainLayout() {
         <>
           {/* Left Sidebar Toolbox + Canvas + Analysis Studio */}
           <main className="app-main">
-            <Toolbox />
+            {/* Left Sidebar Toolbox (Drawer on mobile) */}
+            <div className={`toolbox-drawer-wrapper ${mobileDrawer === 'toolbox' ? 'open' : ''}`}>
+              <Toolbox onClose={() => setMobileDrawer(null)} />
+            </div>
+
+            {/* Interactive Canvas */}
             <Canvas />
-            <AnalysisPanel />
+
+            {/* Right Analysis Studio (Drawer on mobile) */}
+            <div className={`analysis-drawer-wrapper ${mobileDrawer === 'analysis' ? 'open' : ''}`}>
+              <AnalysisPanel onClose={() => setMobileDrawer(null)} />
+            </div>
+
+            {/* Mobile Drawer Backdrop Overlay */}
+            {mobileDrawer && (
+              <div
+                className="mobile-drawer-backdrop"
+                onClick={() => setMobileDrawer(null)}
+              />
+            )}
+
+            {/* Mobile Quick Floating Command Ribbon (Only visible on screens < 1024px) */}
+            <nav className="mobile-quick-toolbar" aria-label="Mobile Quick Drawing Ribbon">
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${mobileDrawer === 'toolbox' ? 'active' : ''}`}
+                onClick={() => setMobileDrawer(prev => prev === 'toolbox' ? null : 'toolbox')}
+                title="Open Complete Toolbox"
+              >
+                <Layers size={15} />
+                <span>Tools</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${armedTool?.id === 'freehand' || freeHandState?.isActive ? 'active' : ''}`}
+                onClick={() => {
+                  if (armedTool?.id === 'freehand') {
+                    setArmedTool(null);
+                  } else {
+                    setArmedTool({
+                      id: 'freehand',
+                      category: 'member',
+                      label: 'Free-Hand Member',
+                      badge: '★ Free'
+                    });
+                    setActiveTool('select');
+                    setMobileDrawer(null);
+                  }
+                }}
+                title="Draw Member"
+              >
+                <Compass size={15} />
+                <span>Draw</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${armedTool?.id === 'horizontal' ? 'active' : ''}`}
+                onClick={() => {
+                  if (armedTool?.id === 'horizontal') {
+                    setArmedTool(null);
+                  } else {
+                    setArmedTool({
+                      id: 'horizontal',
+                      category: 'member',
+                      label: '0° Horizontal Truss',
+                      badge: '0°'
+                    });
+                    setActiveTool('select');
+                    setMobileDrawer(null);
+                  }
+                }}
+                title="0° Horizontal Member"
+              >
+                <Minus size={15} />
+                <span>0° Bar</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${armedTool?.category === 'support' ? 'active' : ''}`}
+                onClick={() => {
+                  if (armedTool?.category === 'support') {
+                    setArmedTool(null);
+                  } else {
+                    setArmedTool({
+                      id: 'pin',
+                      category: 'support',
+                      label: 'Pin Support (Rx, Ry)'
+                    });
+                    setActiveTool('select');
+                    setMobileDrawer(null);
+                  }
+                }}
+                title="Attach Pin Support"
+              >
+                <CircleDot size={15} />
+                <span>Support</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${armedTool?.category === 'force' ? 'active' : ''}`}
+                onClick={() => {
+                  if (armedTool?.category === 'force') {
+                    setArmedTool(null);
+                  } else {
+                    setArmedTool({
+                      id: 'force',
+                      category: 'force',
+                      label: 'Downward Point Load',
+                      magnitude: forceUnit === 'N' ? 15000 : 15,
+                      angle: 270
+                    });
+                    setActiveTool('select');
+                    setMobileDrawer(null);
+                  }
+                }}
+                title="Add Point Load"
+              >
+                <ArrowDownCircle size={15} />
+                <span>Load</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-tool-chip cursor-target ${activeTool === 'eraser' ? 'active' : ''}`}
+                onClick={() => {
+                  setArmedTool(null);
+                  setActiveTool(prev => prev === 'eraser' ? 'select' : 'eraser');
+                  setMobileDrawer(null);
+                }}
+                title="Sweep Eraser"
+              >
+                <Eraser size={15} />
+                <span>Erase</span>
+              </button>
+
+              <button
+                type="button"
+                className="mobile-tool-chip btn-mobile-analyse cursor-target"
+                onClick={() => {
+                  runAnalysis();
+                  setMobileDrawer('analysis');
+                }}
+                title="Solve & View Analysis Results"
+              >
+                <Play size={15} />
+                <span>Solve</span>
+              </button>
+            </nav>
           </main>
 
           {/* Precision Input Modal */}
