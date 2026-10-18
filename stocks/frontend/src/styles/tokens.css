@@ -1,0 +1,43 @@
+/* TripWise Design Tokens: Strict Palette and Derived Tints
+   Brand hues:
+   #713600 (deep brown)
+   #C05800 (burnt orange)
+   #FDFBD4 (cream)
+   #38240D (espresso)
+*/
+
+:root {
+  /* Light Theme */
+  --bg: #FDFBD4;
+  --bg-elevated: #F4F0C0;
+  --bg-subtle: #EBE5AD;
+  --surface: #FFFEEB;
+  --text: #38240D;
+  --text-muted: rgba(56, 36, 13, 0.70);
+  --primary: #C05800;
+  --primary-strong: #713600;
+  --primary-hover: #A54B00;
+  --primary-active: #8C3E00;
+  --border: rgba(113, 54, 0, 0.20);
+  --ring: rgba(192, 88, 0, 0.50);
+  --badge-bg: rgba(192, 88, 0, 0.12);
+  --badge-text: #713600;
+}
+
+.dark {
+  /* Dark Theme */
+  --bg: #2B1B0A;
+  --bg-elevated: #3D270F;
+  --bg-subtle: #4A3014;
+  --surface: #34210C;
+  --text: #FDFBD4;
+  --text-muted: rgba(253, 251, 212, 0.70);
+  --primary: #D4660C;
+  --primary-strong: #E8781B;
+  --primary-hover: #E8781B;
+  --primary-active: #F2892C;
+  --border: rgba(253, 251, 212, 0.18);
+  --ring: rgba(212, 102, 12, 0.50);
+  --badge-bg: rgba(212, 102, 12, 0.20);
+  --badge-text: #FDFBD4;
+}
