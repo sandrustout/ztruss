@@ -716,6 +716,14 @@ export default function Toolbox({ onClose, onShowAnalysis }) {
               <button
                 type="button"
                 className="toolbox-preset-row cursor-target"
+                onClick={() => loadPreset('example_1')}
+              >
+                <span className="preset-name">Example 1 (Fink Truss)</span>
+                <span className="preset-sub">18m Fink • 27 bars • 15 joints</span>
+              </button>
+              <button
+                type="button"
+                className="toolbox-preset-row cursor-target"
                 onClick={() => loadPreset('triangle')}
               >
                 <span className="preset-name">Simple Triangle</span>

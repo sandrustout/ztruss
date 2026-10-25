@@ -1352,7 +1352,91 @@ export function TrussProvider({ children }) {
   const loadPreset = useCallback((presetName) => {
     clearCanvas();
 
-    if (presetName === 'triangle') {
+    if (presetName === 'example_1' || presetName === 'example-1' || presetName === 'example1') {
+      // 18m Fink Truss with 30° roof pitch
+      // Supports: A is pin joint, I is roller joint
+      // Loads: 15 kN downward at B, C, D, F, G, H and 20 kN downward at peak E
+      const jA = { id: 'j_A', x: 0, y: 0, label: 'A' };
+      const jB = { id: 'j_B', x: 2.25, y: 1.299, label: 'B' };
+      const jJ = { id: 'j_J', x: 3, y: 0, label: 'J' };
+      const jC = { id: 'j_C', x: 4.5, y: 2.5981, label: 'C' };
+      const jK = { id: 'j_K', x: 6, y: 0, label: 'K' };
+      const jD = { id: 'j_D', x: 6.75, y: 3.8971, label: 'D' };
+      const jL = { id: 'j_L', x: 7.5, y: 2.5981, label: 'L' };
+      const jE = { id: 'j_E', x: 9, y: 5.1962, label: 'E' };
+      const jM = { id: 'j_M', x: 10.5, y: 2.5981, label: 'M' };
+      const jF = { id: 'j_F', x: 11.25, y: 3.8971, label: 'F' };
+      const jN = { id: 'j_N', x: 12, y: 0, label: 'N' };
+      const jG = { id: 'j_G', x: 13.5, y: 2.5981, label: 'G' };
+      const jO = { id: 'j_O', x: 15, y: 0, label: 'O' };
+      const jH = { id: 'j_H', x: 15.75, y: 1.299, label: 'H' };
+      const jI = { id: 'j_I', x: 18, y: 0, label: 'I' };
+
+      const mList = [
+        // Top chord (rafters)
+        { id: 'm_AB', startJointId: 'j_A', endJointId: 'j_B', label: 'F_AB' },
+        { id: 'm_BC', startJointId: 'j_B', endJointId: 'j_C', label: 'F_BC' },
+        { id: 'm_CD', startJointId: 'j_C', endJointId: 'j_D', label: 'F_CD' },
+        { id: 'm_DE', startJointId: 'j_D', endJointId: 'j_E', label: 'F_DE' },
+        { id: 'm_EF', startJointId: 'j_E', endJointId: 'j_F', label: 'F_EF' },
+        { id: 'm_FG', startJointId: 'j_F', endJointId: 'j_G', label: 'F_FG' },
+        { id: 'm_GH', startJointId: 'j_G', endJointId: 'j_H', label: 'F_GH' },
+        { id: 'm_HI', startJointId: 'j_H', endJointId: 'j_I', label: 'F_HI' },
+
+        // Bottom chord (tie)
+        { id: 'm_AJ', startJointId: 'j_A', endJointId: 'j_J', label: 'F_AJ' },
+        { id: 'm_JK', startJointId: 'j_J', endJointId: 'j_K', label: 'F_JK' },
+        { id: 'm_KN', startJointId: 'j_K', endJointId: 'j_N', label: 'F_KN' },
+        { id: 'm_NO', startJointId: 'j_N', endJointId: 'j_O', label: 'F_NO' },
+        { id: 'm_OI', startJointId: 'j_O', endJointId: 'j_I', label: 'F_OI' },
+
+        // Left internal webbing
+        { id: 'm_BJ', startJointId: 'j_B', endJointId: 'j_J', label: 'F_BJ' },
+        { id: 'm_CJ', startJointId: 'j_C', endJointId: 'j_J', label: 'F_CJ' },
+        { id: 'm_CK', startJointId: 'j_C', endJointId: 'j_K', label: 'F_CK' },
+        { id: 'm_CL', startJointId: 'j_C', endJointId: 'j_L', label: 'F_CL' },
+        { id: 'm_DL', startJointId: 'j_D', endJointId: 'j_L', label: 'F_DL' },
+        { id: 'm_KL', startJointId: 'j_K', endJointId: 'j_L', label: 'F_KL' },
+        { id: 'm_LE', startJointId: 'j_L', endJointId: 'j_E', label: 'F_LE' },
+
+        // Right internal webbing
+        { id: 'm_EM', startJointId: 'j_E', endJointId: 'j_M', label: 'F_EM' },
+        { id: 'm_MN', startJointId: 'j_M', endJointId: 'j_N', label: 'F_MN' },
+        { id: 'm_FM', startJointId: 'j_F', endJointId: 'j_M', label: 'F_FM' },
+        { id: 'm_GM', startJointId: 'j_G', endJointId: 'j_M', label: 'F_GM' },
+        { id: 'm_GN', startJointId: 'j_G', endJointId: 'j_N', label: 'F_GN' },
+        { id: 'm_GO', startJointId: 'j_G', endJointId: 'j_O', label: 'F_GO' },
+        { id: 'm_HO', startJointId: 'j_H', endJointId: 'j_O', label: 'F_HO' }
+      ];
+
+      const s1 = { id: 's_A', jointId: 'j_A', type: 'pin', orientation: 'horizontal' };
+      const s2 = { id: 's_I', jointId: 'j_I', type: 'roller', orientation: 'horizontal' };
+
+      const { fx: fxB, fy: fyB } = calculateForceComponents(15, 270);
+      const { fx: fxC, fy: fyC } = calculateForceComponents(15, 270);
+      const { fx: fxD, fy: fyD } = calculateForceComponents(15, 270);
+      const { fx: fxE, fy: fyE } = calculateForceComponents(20, 270);
+      const { fx: fxF, fy: fyF } = calculateForceComponents(15, 270);
+      const { fx: fxG, fy: fyG } = calculateForceComponents(15, 270);
+      const { fx: fxH, fy: fyH } = calculateForceComponents(15, 270);
+
+      const fList = [
+        { id: 'f_B', jointId: 'j_B', magnitude: 15, angle: 270, fx: fxB, fy: fyB },
+        { id: 'f_C', jointId: 'j_C', magnitude: 15, angle: 270, fx: fxC, fy: fyC },
+        { id: 'f_D', jointId: 'j_D', magnitude: 15, angle: 270, fx: fxD, fy: fyD },
+        { id: 'f_E', jointId: 'j_E', magnitude: 20, angle: 270, fx: fxE, fy: fyE },
+        { id: 'f_F', jointId: 'j_F', magnitude: 15, angle: 270, fx: fxF, fy: fyF },
+        { id: 'f_G', jointId: 'j_G', magnitude: 15, angle: 270, fx: fxG, fy: fyG },
+        { id: 'f_H', jointId: 'j_H', magnitude: 15, angle: 270, fx: fxH, fy: fyH }
+      ];
+
+      setJoints([jA, jB, jC, jD, jE, jF, jG, jH, jI, jJ, jK, jL, jM, jN, jO]);
+      setMembers(mList);
+      setSupports([s1, s2]);
+      setForces(fList);
+      setStructureMode('truss');
+      setViewTransform({ panX: 130, panY: 450, zoom: 36 });
+    } else if (presetName === 'triangle') {
       // Simple 3-bar equilateral-ish triangle
       const jA = { id: 'j_A', x: 0, y: 0, label: 'A' };
       const jB = { id: 'j_B', x: 4, y: 0, label: 'B' };

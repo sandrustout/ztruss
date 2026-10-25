@@ -1387,6 +1387,13 @@ export default function Canvas() {
                 <button
                   type="button"
                   className="empty-preset-btn"
+                  onClick={() => loadPreset('example_1')}
+                >
+                  Example 1 (Fink Truss)
+                </button>
+                <button
+                  type="button"
+                  className="empty-preset-btn"
                   onClick={() => loadPreset('triangle')}
                 >
                   Simple Triangle (3-Bar)
