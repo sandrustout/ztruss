@@ -117,7 +117,7 @@ export default function TeamPage({ onBack }) {
             <Users size={14} /> 8 CONTRIBUTORS
           </span>
           <a
-            href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+            href="https://hits.sh/z-truss.netlify.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="team-badge-pill team-visitor-pill cursor-target"
@@ -170,20 +170,20 @@ export default function TeamPage({ onBack }) {
             <div className="team-stat-item team-visitor-stat-item">
               <div className="team-visitor-counter-box">
                 <a
-                  href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+                  href="https://hits.sh/z-truss.netlify.app/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="team-visitor-img-link cursor-target"
-                  title="Live Website Visitors (powered by freevisitorcounters.com)"
+                  className="team-visitor-badge-link cursor-target"
+                  title="Live Global Website Visitors on z-truss.netlify.app (Click to view traffic analytics)"
                 >
                   <img
-                    src="https://www.freevisitorcounters.com/en/counter/render/1685844/t/11"
-                    alt="Live Website Visitors Counter"
-                    className="counterimg team-visitor-odometer"
+                    src="https://hits.sh/z-truss.netlify.app.svg?style=flat-square&label=VISITORS&color=0284c7&labelColor=0f192e"
+                    alt="Live Website Visitors"
+                    className="team-visitor-badge-img"
                   />
                 </a>
               </div>
-              <span className="team-stat-lbl">Website Visitors</span>
+              <span className="team-stat-lbl">Live Website Visitors</span>
             </div>
           </div>
         </div>
@@ -196,11 +196,11 @@ export default function TeamPage({ onBack }) {
           </h2>
           <div className="contributors-header-stats">
             <a
-              href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+              href="https://hits.sh/z-truss.netlify.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="contributors-visitor-counter cursor-target"
-              title="Click to view live visitor statistics on freevisitorcounters.com"
+              title="Click to view live visitor statistics on hits.sh"
             >
               <Eye size={13} className="text-cyan" />
               <span>Live Website Traffic</span>

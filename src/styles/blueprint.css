@@ -4024,10 +4024,11 @@ body, html, #root {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   min-height: 28px;
 }
 
-.team-visitor-img-link {
+.team-visitor-badge-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4036,18 +4037,27 @@ body, html, #root {
   transition: transform 0.18s ease, filter 0.18s ease;
 }
 
-.team-visitor-img-link:hover {
-  transform: scale(1.04);
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
+.team-visitor-badge-link:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.5));
 }
 
-.team-visitor-odometer {
+.team-visitor-badge-img {
   display: block;
-  height: 26px;
+  height: 24px;
   width: auto;
   border-radius: 4px;
   border: 1px solid rgba(56, 189, 248, 0.35);
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+}
+
+.team-visitor-odometer-img {
+  display: block;
+  height: 24px;
+  width: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
   background: #000000;
 }
 
