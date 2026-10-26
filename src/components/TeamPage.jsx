@@ -10,7 +10,8 @@ import {
   Compass,
   Layers,
   Zap,
-  BookOpen
+  BookOpen,
+  Eye
 } from 'lucide-react';
 
 export const CONTRIBUTORS_DATA = [
@@ -115,6 +116,16 @@ export default function TeamPage({ onBack }) {
           <span className="team-badge-pill">
             <Users size={14} /> 8 CONTRIBUTORS
           </span>
+          <a
+            href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="team-badge-pill team-visitor-pill cursor-target"
+            title="Live Global Website Visitors Count on z-truss.netlify.app"
+          >
+            <Eye size={13} />
+            <span>GLOBAL VISITORS</span>
+          </a>
           <span className="team-topbar-title">Z-Truss Engineering Project Team</span>
         </div>
       </div>
@@ -155,6 +166,25 @@ export default function TeamPage({ onBack }) {
               <span className="team-stat-val">3-in-1</span>
               <span className="team-stat-lbl">Truss • Frame • Machine</span>
             </div>
+            <div className="team-stat-divider" />
+            <div className="team-stat-item team-visitor-stat-item">
+              <div className="team-visitor-counter-box">
+                <a
+                  href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="team-visitor-img-link cursor-target"
+                  title="Live Website Visitors (powered by freevisitorcounters.com)"
+                >
+                  <img
+                    src="https://www.freevisitorcounters.com/en/counter/render/1685844/t/11"
+                    alt="Live Website Visitors Counter"
+                    className="counterimg team-visitor-odometer"
+                  />
+                </a>
+              </div>
+              <span className="team-stat-lbl">Website Visitors</span>
+            </div>
           </div>
         </div>
 
@@ -164,9 +194,21 @@ export default function TeamPage({ onBack }) {
             <Award size={18} className="text-cyan" />
             TEAM MEMBERS &amp; REGISTRATION NUMBERS
           </h2>
-          <span className="contributors-count">
-            {CONTRIBUTORS_DATA.length} Core Contributors
-          </span>
+          <div className="contributors-header-stats">
+            <a
+              href="https://www.freevisitorcounters.com/en/home/stats/id/1685844"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="contributors-visitor-counter cursor-target"
+              title="Click to view live visitor statistics on freevisitorcounters.com"
+            >
+              <Eye size={13} className="text-cyan" />
+              <span>Live Website Traffic</span>
+            </a>
+            <span className="contributors-count">
+              {CONTRIBUTORS_DATA.length} Core Contributors
+            </span>
+          </div>
         </div>
 
         <div className="contributors-grid">
